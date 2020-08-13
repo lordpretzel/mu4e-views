@@ -28,6 +28,10 @@ Also provides methods for user defined viewing methods to access content extract
 
 <!-- to install it. -->
 
+### Prerequisites
+
+Until this on `MELPA`, you have to install two dependencies [xwidgets-reuse](https://github.com/lordpretzel/xwidgets-reuse) and [advice-tools](https://github.com/lordpretzel/advice-tools) first.
+
 ### Quelpa
 
 Using [use-package](https://github.com/jwiegley/use-package) with [quelpa](https://github.com/quelpa/quelpa).
