@@ -9,7 +9,7 @@
 
  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) is great, but viewing of html emails is suboptimal.  This packages enables the user to choose how to view emails.  It's main use case is to view emails using an xwidgets window, but the custom viewing methods are also supported.
 
-[![./screencasts/mu4e-views.gif]]
+![viewing-html-emails](./screencasts/mu4e-views.gif)
 
 Also provides methods for user defined viewing methods to access content extracted from an email, e.g., urls or attachments.  This makes it easier to build new views.
 
