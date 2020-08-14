@@ -1,5 +1,6 @@
 language: emacs-lisp
 dist: trusty
+sudo: required
 
 install:
   - curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/travis-eldev-and-evm > x.sh && source ./x.sh
@@ -14,7 +15,7 @@ script:
   - git clone https://github.com/lordpretzel/advice-tools.git ~/scripts/elisp/advice-tools
   - git clone https://github.com/lordpretzel/xwidgets-reuse.git ~/scripts/elisp/xwidgets-reuse
   - git clone https://github.com/djcb/mu.git ~/mu
-  - mkdir -p /usr/local/share/emacs/site-lisp/mu/mu4e/
+  - sudo mkdir -p /usr/local/share/emacs/site-lisp/mu/mu4e/
   - cp -r ~/mu/mu4e/*.el /usr/local/share/emacs/site-lisp/mu/mu4e/
   - eldev -p -dtT test --expect 5
   # Also require that byte-compilation produces no warnings. --warnings-as-errors
