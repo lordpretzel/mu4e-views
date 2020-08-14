@@ -19,4 +19,4 @@ script:
   - sudo chmod -R 777 /usr/local/share/emacs/site-lisp/mu/
   # - eldev -p -dtT test --expect 5
   # Also require that byte-compilation produces no warnings. --warnings-as-errors
-  - eldev -dtT compile --set all
+  - sudo eldev -dtT compile --set all
