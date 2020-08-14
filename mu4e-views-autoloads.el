@@ -25,24 +25,22 @@ Scroll message view down using xwidget method if we view message using xwidget-w
 Scroll message view up using xwidget method if we view message using xwidget-webkit." t nil)
 
 (autoload 'mu4e-views/mu4e-headers-next "flycheck_mu4e-views" "\
-Move to next message in headers view, if a xwidget message
-view is open then use that to show the message. With prefix
-argument move `n' steps instead.
+Move to next message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps instead.
 
 \(fn &optional N)" t nil)
 
 (autoload 'mu4e-views/mu4e-headers-prev "flycheck_mu4e-views" "\
-Move to `n'th previous message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `n' steps backwards.
+Move to `n'th previous message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps backwards.
 
 \(fn &optional N)" t nil)
 
 (autoload 'mu4e-views/mu4e-headers-move "flycheck_mu4e-views" "\
-Move by 'n` steps in the headers view. Negative numbers move backwards.  If message view is open show message in the view.
+Move by 'N` steps in the headers view.  Negative numbers move backwards.  If message view is open show message in the view.
 
 \(fn N)" t nil)
 
 (autoload 'mu4e-views/mu4e-after-headers-mode "flycheck_mu4e-views" "\
-Called when `mu4e~headers-move' is called to record from where it was called.
+Called when `mu4e~headers-move' is called to record from where it was called.  Ignore `N'.
 
 \(fn N)" nil nil)
 
@@ -85,7 +83,7 @@ Wraps the `mu4e-view-action' function and passes on the message stored in `mu4e-
 Wraps the `mu4e-view-fetch-url' function and passes on the message stored in `mu4e-views--current-mu4e-message'." t nil)
 
 (autoload 'mu4e-views/mu4e-select-view-msg-method "flycheck_mu4e-views" "\
-select the method for viewing emails in mu4e" t nil)
+Select the method for viewing emails in `mu4e'." t nil)
 
 (autoload 'mu4e-views-deactivate "flycheck_mu4e-views" "\
 Uninstalls the advices on mu4e functions created by mu4e-views." t nil)
@@ -112,24 +110,22 @@ Scroll message view down using xwidget method if we view message using xwidget-w
 Scroll message view up using xwidget method if we view message using xwidget-webkit." t nil)
 
 (autoload 'mu4e-views/mu4e-headers-next "mu4e-views" "\
-Move to next message in headers view, if a xwidget message
-view is open then use that to show the message. With prefix
-argument move `n' steps instead.
+Move to next message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps instead.
 
 \(fn &optional N)" t nil)
 
 (autoload 'mu4e-views/mu4e-headers-prev "mu4e-views" "\
-Move to `n'th previous message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `n' steps backwards.
+Move to `n'th previous message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps backwards.
 
 \(fn &optional N)" t nil)
 
 (autoload 'mu4e-views/mu4e-headers-move "mu4e-views" "\
-Move by 'n` steps in the headers view. Negative numbers move backwards.  If message view is open show message in the view.
+Move by 'N` steps in the headers view.  Negative numbers move backwards.  If message view is open show message in the view.
 
 \(fn N)" t nil)
 
 (autoload 'mu4e-views/mu4e-after-headers-mode "mu4e-views" "\
-Called when `mu4e~headers-move' is called to record from where it was called.
+Called when `mu4e~headers-move' is called to record from where it was called.  Ignore `N'.
 
 \(fn N)" nil nil)
 
@@ -172,7 +168,7 @@ Wraps the `mu4e-view-action' function and passes on the message stored in `mu4e-
 Wraps the `mu4e-view-fetch-url' function and passes on the message stored in `mu4e-views--current-mu4e-message'." t nil)
 
 (autoload 'mu4e-views/mu4e-select-view-msg-method "mu4e-views" "\
-select the method for viewing emails in mu4e" t nil)
+Select the method for viewing emails in `mu4e'." t nil)
 
 (autoload 'mu4e-views-deactivate "mu4e-views" "\
 Uninstalls the advices on mu4e functions created by mu4e-views." t nil)

@@ -55,7 +55,7 @@
 	("html" . (:viewfunc mu4e-views/mu4e-view-xwidget)) ;; open with xwidget
 	("browser" . (:viewfunc mu4e-views/view-in-browser :no-view-window t)) ;; open with browser
     )
-  "A list of commands for viewing messages in mu4e, e.g., translating html into text or opening html, e.g., with xwidgets within emacs."
+  "A list of commands for viewing messages in mu4e, e.g., translating html into text or opening html, e.g., with xwidgets within Emacs."
   :group 'mu4e-views
   :type 'alist
   )
@@ -116,10 +116,7 @@
 ;; store message object for the message currently shown in xwidgets message view
 (defvar mu4e-views--current-mu4e-message
   nil
-  "Store the mu4e message object for the message currently shown
-in `mu4e-views' window. This enables us to provide mu4e
-iunctionality in a `mu4e-views' view such as opening or storing
-attachments which need this object." )
+  "Store the mu4e message object for the message currently shown in `mu4e-views' window.  This enables us to provide mu4e iunctionality in a `mu4e-views' view such as opening or storing attachments which need this object." )
 
 (defvar mu4e-views--header-selected
   t
@@ -128,7 +125,7 @@ attachments which need this object." )
 
 (defvar mu4e-views--called-from-view
   nil
-  "set if we are called from view."
+  "Set if we are called from view."
   )
 
 ;; ********************************************************************************
@@ -188,32 +185,23 @@ attachments which need this object." )
 
 ;; ********************************************************************************
 ;; functions for viewing a mu4e message in xwidgets
-(defun mu4e-views/mu4e-action-view-with-xwidget (msg)
-  "View the body of the message `MSG' inside xwidget-webkit."
-  (unless (fboundp 'xwidget-webkit-browse-url)
-	(mu4e-error "No xwidget support available"))
-  (let* ((html (mu4e-message-field msg :body-html))
-		 (txt (mu4e-message-field msg :body-txt))
-		 )
-	(unless (or html txt)
-	  (mu4e-error "No body part for this message"))
-	(setq mu4e-views--current-mu4e-message msg)
-	(xwidgets-reuse/xwidget-reuse-browse-url
-     (concat "file://" (mu4e-views/mu4e~write-body-and-headers-to-html msg))
-     'mu4e-view-view-actions-mode
-     )
-	)
-  )
 
-;; open mu4e message with xwidget and then remove advice for ourselves
 (defun mu4e-views/mu4e-view-xwidget (html msg win)
   "View message `MSG' with `HTML' content in xwidget using window `WIN'."
   (interactive)
+  (ignore msg)
+  (unless (fboundp 'xwidget-webkit-browse-url)
+	(mu4e-error "No xwidget support available"))
+  ;; select window
   (select-window win)
   ;; show message
-  (mu4e-views/mu4e-action-view-with-xwidget msg)
+  ;; (mu4e-views/mu4e-action-view-with-xwidget msg)
+	(xwidgets-reuse/xwidget-reuse-browse-url
+     (concat "file://" html)
+     'mu4e-view-view-actions-mode
+     )
   ;; switch back to headers window
-  (select-window (get-buffer-window (mu4e-get-headers-buffer)))
+  ;;(select-window (get-buffer-window (mu4e-get-headers-buffer)))
   )
 
 ;; ********************************************************************************
@@ -228,6 +216,7 @@ attachments which need this object." )
 
 (defun mu4e-views/view-in-browser (html msg)
   "Open email `MSG` with content `HTML' using `browse-url'."
+  (ignore msg)
   (browse-url (concat "file://" html))
   )
 
@@ -285,19 +274,20 @@ attachments which need this object." )
 
 ;; write a message as html but also write the header information
 (defun mu4e-views/set-auto-mode-dummy (&optional keep-mode-if-same)
-  "Do nothing function that replaces `set-auto-mode' when just writing to a file.  Ignores `KEEP-MODE-IF-SAME'."
+  "Do nothing function to replace `set-auto-mode' when just writing to a file.  Ignore `KEEP-MODE-IF-SAME'."
+  (ignore keep-mode-if-same)
   )
 
 (defun mu4e-views/vc-refresh-state-dummy ()
-  "Do nothing function that replaces `vc-refresh-state' when just writing to a file."
+  "Do nothing function to replace `vc-refresh-state' when just writing to a file."
   )
 
 (defun mu4e-views/vc-before-save-dummy ()
-  "Do nothing function that replaces `vc-before-save' when just writing to a file."
+  "Do nothing function to replace `vc-before-save' when just writing to a file."
   )
 
 (defun mu4e-views/vc-after-save-dummy ()
-  "Do nothing function that replaces `vc-before-after' when just writing to a file."
+  "Do nothing function ro replace `vc-before-after' when just writing to a file."
   )
 
 (defun mu4e-views/mu4e~write-body-and-headers-to-html (msg)
@@ -472,8 +462,7 @@ attachments which need this object." )
   )
 
 (defun mu4e-views/mu4e-headers-view-message ()
-  "View message at point.  If there's an existing window for the view, re-use that one.  If not, create a new one, depending on the value of `mu4e-split-view': if it's a symbol `horizontal' or `vertical', split the window accordingly; if it is nil, replace
-the current window."
+  "View message at point.  If there's an existing window for the view, re-use that one.  If not, create a new one, depending on the value of `mu4e-split-view': if it's a symbol `horizontal' or `vertical', split the window accordingly; if it is nil, replace the current window."
   (interactive)
   (unless (eq major-mode 'mu4e-headers-mode)
     (mu4e-error "Must be in mu4e-headers-mode (%S)" major-mode))
@@ -503,7 +492,7 @@ the current window."
 
 
 (defun mu4e-views/view-msg-internal (msg)
-  "Replacement for mu4e-view-msg-internal."
+  "Replacement for `mu4e-view-msg-internal'.  Takes `mu4e' message `MSG' as input."
   (let* ((viewfunc (plist-get mu4e-views--current-viewing-method :viewfunc))
          (no-window (plist-get mu4e-views--current-viewing-method :no-view-window))
          (html (mu4e-message-field msg :body-html))
@@ -514,7 +503,7 @@ the current window."
 	(unless (or html txt)
 	  (mu4e-error "No body part for this message"))
     ;; (unless (and win (window-valid-p win))
-    ;;   (mu4e-error "window no longer active"))
+    ;;   (mu4e-error "Window no longer active"))
 	(setq mu4e-views--current-mu4e-message msg)
 	(setq htmlfile (mu4e-views/mu4e~write-body-and-headers-to-html msg))
     (if no-window
@@ -539,20 +528,6 @@ the current window."
       )
 	)
   )
-
-;; ********************************************************************************
-;; minor mode that advices mu4e functions to use mu4e-views instead
-;; (define-minor-mode mu4e-views-global-mode
-;;   "Minor mode for setting up keys when viewing a mu4e email in xwidgets."
-;;   ;; The initial value - Set to 1 to enable by default
-;;   :init-value nil
-;;   ;; The indicator for the mode line.
-;;   :lighter " M4VIEW"
-;;   ;; The minor mode keymap
-;;   :keymap
-;;   ;; Make mode global
-;;   :global t
-;;   )
 
 ;; ********************************************************************************
 ;; helpers for mu4e-headers view.
@@ -591,9 +566,7 @@ the current window."
 
 ;;;###autoload
 (defun mu4e-views/mu4e-headers-next (&optional n)
-  "Move to next message in headers view, if a xwidget message
-view is open then use that to show the message. With prefix
-argument move `n' steps instead."
+  "Move to next message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps instead."
   (interactive "P")
   (let ((step (or n 1)))
 	(mu4e-views/mu4e-headers-move step)
@@ -602,7 +575,7 @@ argument move `n' steps instead."
 
 ;;;###autoload
 (defun mu4e-views/mu4e-headers-prev (&optional n)
-  "Move to `n'th previous message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `n' steps backwards."
+  "Move to `n'th previous message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps backwards."
   (interactive "P")
   (let ((step (* -1 (or n 1))))
 	(mu4e-views/mu4e-headers-move step)
@@ -611,7 +584,7 @@ argument move `n' steps instead."
 
 ;;;###autoload
 (defun mu4e-views/mu4e-headers-move (n)
-  "Move by 'n` steps in the headers view. Negative numbers move backwards.  If message view is open show message in the view."
+  "Move by 'N` steps in the headers view.  Negative numbers move backwards.  If message view is open show message in the view."
   (interactive)
   (switch-to-buffer (mu4e-get-headers-buffer))
   (setq mu4e-views--called-from-view t)
@@ -622,7 +595,8 @@ argument move `n' steps instead."
 
 ;;;###autoload
 (defun mu4e-views/mu4e-after-headers-mode (n)
-  "Called when `mu4e~headers-move' is called to record from where it was called."
+  "Called when `mu4e~headers-move' is called to record from where it was called.  Ignore `N'."
+  (ignore n)
   (if mu4e-views--called-from-view
       (setq mu4e-views--called-from-view nil)
     (progn
@@ -843,7 +817,7 @@ argument move `n' steps instead."
 ;; function to select how to view emails
 ;;;###autoload
 (defun mu4e-views/mu4e-select-view-msg-method ()
-  "select the method for viewing emails in mu4e"
+  "Select the method for viewing emails in `mu4e'."
   (interactive)
   (ivy-read "Select method for viewing mail: " ;; prompt
 			(mapcar (lambda (x) (car x)) mu4e-views-view-commands) ;; collection to complete over
