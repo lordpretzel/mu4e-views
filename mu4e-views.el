@@ -3,7 +3,7 @@
 ;; Author: Boris Glavic <lordpretzel@gmail.com>
 ;; Maintainer: Boris Glavic <lordpretzel@gmail.com>
 ;; Version: 0.1
-;; Package-Requires: ((emacs "26.1") xwidget ivy (xwidgets-reuse "0.1") ht)
+;; Package-Requires: ((emacs "26.1") (ivy "0.9.0") (xwidgets-reuse "0.1") (ht "2.2"))
 ;; Homepage: https://github.com/lordpretzel/mu4e-views
 ;; Keywords: mail
 
@@ -37,7 +37,7 @@
 
 ;;; Code:
 ;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
-
+;;TODO let user choose completion backend
 (require 'seq)
 (require 'mu4e)
 (require 'ht)
@@ -139,7 +139,6 @@
   (let
 	  ((cmd (cdr (assoc method mu4e-views-view-commands)))
 	   (oldmethod mu4e-views--current-viewing-method))
-	;;(message "use view msg method: %s (new function: %s, old function: %s)" method (symbol-name cmd) (symbol-name oldmethod))
 	;; do not update anything if the method is the same
 	(unless (eq cmd oldmethod)
 	  (setq mu4e-views--current-viewing-method cmd)
@@ -308,33 +307,26 @@
 ;; functions that are replace mu4e functions and make sure the mu4e-views window is shown
 ;;TODO check that the window size ratios are ok?
 (defun mu4e-views-mu4e-header-and-view-windows-p ()
-  "Check whether we are already showing the mu4e-headers and (custom) mu4e-view windows."
+  "Check whether we are already showing the mu4e-headers and (custom) `mu4e-views' windows."
   (let ((have-header nil)
         (have-view nil)
         (other-buf nil)
         (loading-buffer mu4e~headers-loading-buf)
         (header-buffer (mu4e-get-headers-buffer)))
-    (unless (eq (length (window-list)) 2)
-      nil)
-    (cl-loop for w in (window-list) do
-             (let* ((buf (window-buffer w))
-                    ;; (bufname (buffer-name buf))
-                    )
-               ;;(message "FOUND WINDOW: %s nad BUF: %s IS VALID: %s" w bufname (window-valid-p w))
-               (when (eq buf header-buffer)
-                ;; (message "HAVE HEADER WINDOW: %s BUFFER: %s" w buf)
-                 (setq have-header t))
-               (when (eq buf loading-buffer)
-                ;; (message "HAVE VIEW WINDOW: %s BUFFER: %s" w buf)
-                 (setq have-view t))
-               ;; (when (eq w mu4e-views--view-window)
-               ;;   (message "found mu4e-views window")
-               ;;   (setq have-view t)
-               ;;   )
-               (unless (or (eq buf header-buffer) (eq buf loading-buffer))
-                 ;;(message "NOT HEADER NOR VIEW WINDOW: %s BUFFER: %s" w buf)
-                 (setq other-buf t))))
-    (and have-header (or have-view other-buf))))
+    (if (eq (length (window-list)) 2)
+        ;; we have two window check whether they are the correct ones
+        (progn
+          (cl-loop for w in (window-list) do
+                   (let* ((buf (window-buffer w)))
+                     (when (eq buf header-buffer)
+                       (setq have-header t))
+                     (when (eq buf loading-buffer)
+                       (setq have-view t))
+                     (unless (or (eq buf header-buffer) (eq buf loading-buffer))
+                       (setq other-buf t))))
+          (and have-header (or have-view other-buf)))
+      ;; return nil if window list has not exactly 2 windows
+      nil)))
 
 (defun mu4e-views-get-view-win ()
   "Return window to use for mu4e-views viewing of emails."
@@ -344,7 +336,6 @@
                     (header-buffer (mu4e-get-headers-buffer)))
                (unless (eq buf header-buffer)
                  (when (window-valid-p w)
-                  ;; (message "GET VIEW WINDOW IS: %s BUFFER: %s" w buf)
                    (setq win w)))))
     (if win
         win
@@ -383,7 +374,6 @@
                        (eval new-win-func)))
                     (t ;; no splitting; just use the currently selected one
                      (setq mu4e-views--view-window (selected-window))
-                   ;;  (message "CREATED NEW VIEW WINDOW %s" (selected-window))
                      (selected-window))))))))
 
 (defun mu4e-views-mu4e-headers-view-message ()
@@ -491,7 +481,6 @@
   (switch-to-buffer (mu4e-get-headers-buffer))
   (setq mu4e-views--called-from-view t)
   (setq mu4e-views--header-selected nil)
-  (message "CALLED FROM VIEW")
   (mu4e~headers-move n))
 
 ;;;###autoload
@@ -501,8 +490,7 @@
   (if mu4e-views--called-from-view
       (setq mu4e-views--called-from-view nil)
     (progn
-      (setq mu4e-views--header-selected t)
-      (message "CALLED FROM HEADER"))))
+      (setq mu4e-views--header-selected t))))
 
 ;; ********************************************************************************
 ;; helper function for accessing parts of an email. Should be bound by custom mu4e-view modes.
