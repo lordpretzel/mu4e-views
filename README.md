@@ -30,7 +30,7 @@ Also provides methods to access content extracted from an email, e.g., urls or a
 
 ### Prerequisites
 
-Until this on `MELPA`, you have to install two dependencies [xwidgets-reuse](https://github.com/lordpretzel/xwidgets-reuse) and [advice-tools](https://github.com/lordpretzel/advice-tools) first.
+Until this on `MELPA`, you have to install dependency [xwidgets-reuse](https://github.com/lordpretzel/xwidgets-reuse) first. Also this uses `xwidget`, so you can only use this package if your emacs has been compiled with support for `xwidget`. If you are unsure whether this is the case try running: `(xwidget-webkit-browse-url "https://www.gnu.org/")`.
 
 ### Quelpa
 
@@ -119,6 +119,10 @@ Several keys are bound in this view to store attachments, open attachments, go t
 - `E`: `mu4e-views/mu4e-view-save-all-attachment` - save all attachments
 - `a`: `mu4e-views/mu4e-view-action` - call a `mu4e` view action
 - `f`: `mu4e-views/mu4e-view-fetch-url` - fetch URL from email
+
+#### Synergy with `xwwp`
+
+To use your keyboard to click on links in an email shown in `xwidgets`, you can use the excellent [xwwp](https://github.com/canatella/xwwp) package.
 
 ### Define custom views
 

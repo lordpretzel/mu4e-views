@@ -3,7 +3,7 @@
 ;; Author: Boris Glavic <lordpretzel@gmail.com>
 ;; Maintainer: Boris Glavic <lordpretzel@gmail.com>
 ;; Version: 0.1
-;; Package-Requires: (xwidget ivy xwidgets-reuse advice-tools ht)
+;; Package-Requires: (xwidget ivy xwidgets-reuse ht)
 ;; Homepage: https://github.com/lordpretzel/mu4e-views
 ;; Keywords: mu4e, email, xwidgets, html
 
@@ -22,7 +22,6 @@
 
 ;; For a full copy of the GNU General Public License
 ;; see <http://www.gnu.org/licenses/>.
-;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
 
 ;;; Commentary:
 
@@ -37,6 +36,7 @@
 
 
 ;;; Code:
+;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
 
 (require 'seq)
 (require 'mu4e)
@@ -45,11 +45,9 @@
 (require 'xwidgets-reuse)
 (require 'cl-lib)
 (require 'cl-macs)
-(require 'advice-tools)
 
 ;; ********************************************************************************
 ;; Customize and defvars
-
 (defcustom mu4e-views-view-commands
   '(("text" . (:viewfunc mu4e-headers-view-message)) ;; open with standard mu4e function
 	("html" . (:viewfunc mu4e-views/mu4e-view-xwidget)) ;; open with xwidget
@@ -130,8 +128,29 @@
 
 ;; ********************************************************************************
 ;; functions
+(defun mu4e-views/advice-unadvice (sym)
+  "Remove all advices from symbol SYM."
+  (interactive "aFunction symbol: ")
+  (advice-mapc (lambda (advice _props) (advice-remove sym advice)) sym)
+  )
 
-;; select a view method for email
+(defun mu4e-views/advice-add-if-def (f type theadvice)
+  "Add advice `THEADVICE' as type `T to function `f' if the function to be advised and the advising function both exists."
+  (when (and (fboundp f)  (fboundp theadvice))
+    (advice-add f type theadvice)
+    )
+  )
+
+(defun mu4e-views/advice-remove-if-def (f theadvice)
+  "Add advice if the function to be advised and the advising function both exists."
+  (when (and (fboundp f)  (fboundp theadvice))
+    (advice-remove f theadvice)
+    )
+  )
+
+;; ********************************************************************************
+;; functions
+
 ;;;###autoload
 (defun mu4e-views/mu4e-use-view-msg-method (method)
   "Apply this method `METHOD' for viewing emails in mu4e-headers view."
@@ -146,8 +165,8 @@
 	  (if (eq cmd 'mu4e-headers-view-message)
 		  ;; use standard mu4e method (remove all advice)
           (progn
-		    (advice-tools/advice-unadvice 'mu4e~view-internal)
-            (advice-tools/advice-unadvice 'mu4e-headers-view-message)
+		    (mu4e-views/advice-unadvice 'mu4e~view-internal)
+            (mu4e-views/advice-unadvice 'mu4e-headers-view-message)
             )
 		;; replace advice
         (progn
@@ -159,29 +178,6 @@
 	  )
 	)
   )
-
-;; ********************************************************************************
-;; functions for displaying message in xwidgets
-;; view a mu4e message using xwidgets
-;; (defun mu4e-views/mu4e-xwidget-reuse-browse-url (url)
-;;   "Open URL using xwidgets, but do not "
-;;   (interactive)
-;;   (let ((buf (car (seq-filter (lambda (x) (string-match "*xwidget webkit:" (buffer-name x))) (buffer-list)))))
-;; 	(if buf
-;; 		(progn (message "have xwidget buffer %s, use it!" (buffer-name buf))
-;; 			   (switch-to-buffer buf)
-;; 			   (xwidget-webkit-goto-url url)
-;; 			   (mu4e-views/turn-off-all-xwidgets-specialization-minor-modes)
-;; 			   (mu4e-view-html-xwidgets-mode 1)
-;; 			   )
-;; 	  (progn (xwidget-webkit-browse-url url)
-;; 			 (mu4e-views/turn-off-all-xwidgets-specialization-minor-modes)
-;; 			 (mu4e-view-html-xwidgets-mode 1)
-;; 			 (message "don't have xwidget buffer: create one")
-;; 			 )
-;; 	  )
-;; 	)
-;;   )
 
 ;; ********************************************************************************
 ;; functions for viewing a mu4e message in xwidgets
@@ -207,7 +203,6 @@
 ;; ********************************************************************************
 ;; functions viewing email in a webbrowser (available as action and as a view method)
 
-;; create file to store message in and open in browser
 (defun mu4e-views/mu4e-view-in-browser-action (msg)
   "Open email `MSG' in browser using `browse-url'."
   (interactive)
@@ -227,9 +222,8 @@
 ;; ********************************************************************************
 ;; functions for writing a message to HTML and making it accessible to custom views
 
-;; create formatted html for headers like subject and from/to of an email
 (defun mu4e-views/mu4e-email-headers-as-html (msg)
-  "Create formatted html for headers like subject and from/to of email `MSG'."
+  "Create formatted HTML for headers like subject and from/to of email `MSG'."
   (interactive)
   (mu4e-views/mu4e-create-mu4e-attachment-table-if-need-by mu4e-views--current-mu4e-message)
   (cl-flet ((wrap-row (header content id) (concat "<div class=\"mu4e-mu4e-views-header-row\"><div class=\"mu4e-mu4e-views-mail-header\">" header "</div>: <div class=\"mu4e-mu4e-views-header-content\" id=\"" id "\">" content "</div></div>"))
@@ -272,7 +266,6 @@
 	)
   )
 
-;; write a message as html but also write the header information
 (defun mu4e-views/set-auto-mode-dummy (&optional keep-mode-if-same)
   "Do nothing function to replace `set-auto-mode' when just writing to a file.  Ignore `KEEP-MODE-IF-SAME'."
   (ignore keep-mode-if-same)
@@ -302,16 +295,16 @@
 	(unless (or html txt)
 	  (mu4e-error "No body part for this message"))
 	;; remove hooks and advices that are not needed for writing constructed content to a file, but slow us down
-	(advice-tools/advice-remove-if-def 'set-visited-file-name 'doom-modeline-update-buffer-file-name)
-	(advice-tools/advice-remove-if-def 'set-visited-file-name 'lsp--on-set-visited-file-name)
-	(advice-tools/advice-remove-if-def 'basic-save-buffer 'polymode-with-current-base-buffer)
-	(advice-tools/advice-remove-if-def 'vc-refresh-state 'doom-modeline-update-vcs-text)
-	(advice-tools/advice-remove-if-def 'vc-refresh-state 'doom-modeline-update-vcs-icon)
-	(advice-tools/advice-remove-if-def 'rename-buffer 'doom-modeline-update-buffer-file-name)
-	(advice-tools/advice-add-if-def 'set-auto-mode :override 'mu4e-views/set-auto-mode-dummy)
-	(advice-tools/advice-add-if-def 'vc-refresh-state :override 'mu4e-views/vc-refresh-state-dummy)
-	(advice-tools/advice-add-if-def 'vc-before-save :override 'mu4e-views/vc-before-save-dummy)
-	(advice-tools/advice-add-if-def 'vc-after-save :override 'mu4e-views/vc-after-save-dummy)
+	(mu4e-views/advice-remove-if-def 'set-visited-file-name 'doom-modeline-update-buffer-file-name)
+	(mu4e-views/advice-remove-if-def 'set-visited-file-name 'lsp--on-set-visited-file-name)
+	(mu4e-views/advice-remove-if-def 'basic-save-buffer 'polymode-with-current-base-buffer)
+	(mu4e-views/advice-remove-if-def 'vc-refresh-state 'doom-modeline-update-vcs-text)
+	(mu4e-views/advice-remove-if-def 'vc-refresh-state 'doom-modeline-update-vcs-icon)
+	(mu4e-views/advice-remove-if-def 'rename-buffer 'doom-modeline-update-buffer-file-name)
+	(mu4e-views/advice-add-if-def 'set-auto-mode :override 'mu4e-views/set-auto-mode-dummy)
+	(mu4e-views/advice-add-if-def 'vc-refresh-state :override 'mu4e-views/vc-refresh-state-dummy)
+	(mu4e-views/advice-add-if-def 'vc-before-save :override 'mu4e-views/vc-before-save-dummy)
+	(mu4e-views/advice-add-if-def 'vc-after-save :override 'mu4e-views/vc-after-save-dummy)
 	(let ((cache-before-save-hook before-save-hook)
 		  (cache-after-save-hook after-save-hook)
 		  )
@@ -343,16 +336,16 @@
 			  attachments)
 		(save-buffer)
 		;; restore normal behaviour
-		(advice-tools/advice-add-if-def 'set-visited-file-name :after 'doom-modeline-update-buffer-file-name)
-		(advice-tools/advice-add-if-def 'set-visited-file-name :around 'lsp--on-set-visited-file-name)
-		(advice-tools/advice-add-if-def 'basic-save-buffer :around 'polymode-with-current-base-buffer)
-		(advice-tools/advice-add-if-def 'vc-refresh-state :after 'doom-modeline-update-vcs-text)
-		(advice-tools/advice-add-if-def 'vc-refresh-state :after 'doom-modeline-update-vcs-icon)
-		(advice-tools/advice-add-if-def 'rename-buffer :after 'doom-modeline-update-buffer-file-name)
-		(advice-tools/advice-remove-if-def 'set-auto-mode 'mu4e-views/set-auto-mode-dummy)
-		(advice-tools/advice-remove-if-def 'vc-refresh-state 'mu4e-views/vc-refresh-state-dummy)
-		(advice-tools/advice-remove-if-def 'vc-before-save 'mu4e-views/vc-before-save-dummy)
-		(advice-tools/advice-remove-if-def 'vc-after-save 'mu4e-views/vc-after-save-dummy)
+		(mu4e-views/advice-add-if-def 'set-visited-file-name :after 'doom-modeline-update-buffer-file-name)
+		(mu4e-views/advice-add-if-def 'set-visited-file-name :around 'lsp--on-set-visited-file-name)
+		(mu4e-views/advice-add-if-def 'basic-save-buffer :around 'polymode-with-current-base-buffer)
+		(mu4e-views/advice-add-if-def 'vc-refresh-state :after 'doom-modeline-update-vcs-text)
+		(mu4e-views/advice-add-if-def 'vc-refresh-state :after 'doom-modeline-update-vcs-icon)
+		(mu4e-views/advice-add-if-def 'rename-buffer :after 'doom-modeline-update-buffer-file-name)
+		(mu4e-views/advice-remove-if-def 'set-auto-mode 'mu4e-views/set-auto-mode-dummy)
+		(mu4e-views/advice-remove-if-def 'vc-refresh-state 'mu4e-views/vc-refresh-state-dummy)
+		(mu4e-views/advice-remove-if-def 'vc-before-save 'mu4e-views/vc-before-save-dummy)
+		(mu4e-views/advice-remove-if-def 'vc-after-save 'mu4e-views/vc-after-save-dummy)
 		(setq before-save-hook cache-before-save-hook)
 		(setq after-save-hook cache-after-save-hook)
 		(lax-plist-put msg :html-file tmpfile)
@@ -422,7 +415,7 @@
   )
 
 (defun mu4e-views/headers-redraw-get-view-window ()
-  "Close all windows, redraw the headers buffer based on the value of `mu4e-split-view', and return a window for the message view."
+  "Unless we already have the correct window layour, close all windows, redraw the headers buffer based on the value of `mu4e-split-view', and return a window for the message view."
   ;; if single is used then the headers buffer needs to be replaced
   (when (eq mu4e-split-view 'single-window)
     (let ((win (or (and (buffer-live-p (mu4e-get-view-buffer))
@@ -476,7 +469,6 @@
                     (mu4e-views/headers-redraw-get-view-window)))
          )
     (when viewwin
-     ;; (message "VIEW BEFORE LOADING WINDOW: %s" viewwin)
       (select-window viewwin)
 
       ;; show some 'loading...' buffer
@@ -486,7 +478,6 @@
           (mu4e-loading-mode)))
 
       (switch-to-buffer mu4e~headers-loading-buf)
-     ;; (message "LOADING WINDOW IN: %s" (selected-window))
       )
     (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))
 
@@ -511,15 +502,12 @@
         (funcall viewfunc htmlfile msg)
       ;; method needs a window, reuse or create a new one, then switch to the headers or view window based on `mu4e-views-next-previous-message-behaviour'.
       (progn
-       ;; (message "CALL VIEW FUNCTION ON WINDOW: %s WITH CURRENT BUFFER: %s IS VALID %s" (selected-window) (current-buffer) (window-valid-p (mu4e-views/headers-redraw-get-view-window)))
         (funcall viewfunc htmlfile msg (mu4e-views/headers-redraw-get-view-window))
         (select-window (mu4e-views/headers-redraw-get-view-window))
         (cl-case mu4e-views-next-previous-message-behaviour
           (stick-to-current-window (if mu4e-views--header-selected
-                                       (progn (message "TO HEADER ...")
-                                              (select-window (get-buffer-window (mu4e-get-headers-buffer))))
-                                     (progn (select-window (mu4e-views/headers-redraw-get-view-window))
-                                            (message "TO VIEW ..."))
+                                       (select-window (get-buffer-window (mu4e-get-headers-buffer)))
+                                     (select-window (mu4e-views/headers-redraw-get-view-window))
                                      ))
           (always-switch-to-view (select-window (mu4e-views/headers-redraw-get-view-window)))
           (always-switch-to-headers (mu4e~headers-select-window))
@@ -531,7 +519,6 @@
 
 ;; ********************************************************************************
 ;; helpers for mu4e-headers view.
-;; functions to scroll message view from header window
 
 ;;;###autoload
 (defun mu4e-views/mu4e-headers-windows-only ()
@@ -609,7 +596,6 @@
 ;; helper function for accessing parts of an email. Should be bound by custom mu4e-view modes.
 ;; These functions wrapp `mu4e' functions and pass on our saved message
 
-;; prepare mu4e datastructure so that urls in the message are extracted and can be opened
 ;;;###autoload
 (defun mu4e-views/mu4e-extract-urls-from-msg (msg)
   "Prepare mu4e datastructure for `MSG' so that command view message commands like browsing urls work in our xwidget message view."
@@ -814,6 +800,10 @@
   :global nil
   )
 
+;; Register the minor mode with `xwidgets-reuse' so that it is automatically
+;; turned of if the xwidget session is reused for a different purpose.
+(xwidgets-reuse/register-minor-mode 'mu4e-view-view-actions-mode)
+
 ;; function to select how to view emails
 ;;;###autoload
 (defun mu4e-views/mu4e-select-view-msg-method ()
@@ -835,9 +825,9 @@
 (defun mu4e-views-deactivate ()
   "Uninstalls the advices on mu4e functions created by mu4e-views."
   (interactive)
-  (advice-tools/advice-unadvice 'mu4e~view-internal)
-  (advice-tools/advice-unadvice 'mu4e-headers-view-message)
-  (advice-tools/advice-unadvice 'mu4e~headers-move)
+  (mu4e-views/advice-unadvice 'mu4e~view-internal)
+  (mu4e-views/advice-unadvice 'mu4e-headers-view-message)
+  (mu4e-views/advice-unadvice 'mu4e~headers-move)
   )
 
 (provide 'mu4e-views)
