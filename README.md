@@ -82,7 +82,7 @@ This package changes the way how `mu4e` shows emails when selecting an email fro
 
 ### Setup
 
-After the package is loaded, you can call `mu4e-views/mu4e-select-view-msg-method` from the `mu4e-headers` view to select the method to use for viewing. Per default `mu4e-view` supports:
+After the package is loaded, you can call `mu4e-views-mu4e-select-view-msg-method` from the `mu4e-headers` view to select the method to use for viewing. Per default `mu4e-view` supports:
 
 - `html` - uses `xwidgets` to show the email
 - `text` - the default `mu4e` method for viewing emails that translates the email into text
@@ -91,7 +91,7 @@ After the package is loaded, you can call `mu4e-views/mu4e-select-view-msg-metho
 You may want to bind this to a key in `mu4e-headers-mode-map`.
 
 ~~~elisp
-(define-key mu4e-headers-mode-map (kbd "v") mu4e-views/mu4e-select-view-msg-method)
+(define-key mu4e-headers-mode-map (kbd "v") mu4e-views-mu4e-select-view-msg-method)
 ~~~
 
 ### Settings
@@ -109,16 +109,16 @@ You may want to bind this to a key in `mu4e-headers-mode-map`.
 
 Several keys are bound in this view to store attachments, open attachments, go to urls in the email similar to the regular `mu4e` view window.
 
-- `q`: `mu4e-views/mu4e-headers-windows-only` - quit view window
-- `n`: `mu4e-views/mu4e-headers-next` - move to next message
-- `p`: `mu4e-views/mu4e-headers-prev` - move to previous message
-- `o`: `mu4e-views/mu4e-view-open-attachment` - open an attachment
-- `g`: `mu4e-views/mu4e-view-go-to-url` - go to URL from email
-- `k`: `mu4e-views/mu4e-view-save-url` - save URL
-- `e`: `mu4e-views/mu4e-view-save-attachment` - save an attachment
-- `E`: `mu4e-views/mu4e-view-save-all-attachment` - save all attachments
-- `a`: `mu4e-views/mu4e-view-action` - call a `mu4e` view action
-- `f`: `mu4e-views/mu4e-view-fetch-url` - fetch URL from email
+- `q`: `mu4e-views-mu4e-headers-windows-only` - quit view window
+- `n`: `mu4e-views-mu4e-headers-next` - move to next message
+- `p`: `mu4e-views-mu4e-headers-prev` - move to previous message
+- `o`: `mu4e-views-mu4e-view-open-attachment` - open an attachment
+- `g`: `mu4e-views-mu4e-view-go-to-url` - go to URL from email
+- `k`: `mu4e-views-mu4e-view-save-url` - save URL
+- `e`: `mu4e-views-mu4e-view-save-attachment` - save an attachment
+- `E`: `mu4e-views-mu4e-view-save-all-attachment` - save all attachments
+- `a`: `mu4e-views-mu4e-view-action` - call a `mu4e` view action
+- `f`: `mu4e-views-mu4e-view-fetch-url` - fetch URL from email
 
 #### Synergy with `xwwp`
 

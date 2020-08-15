@@ -20,3 +20,4 @@ dist
 *.~undo-tree
 
 # End of https://www.toptal.com/developers/gitignore/api/elisp
+mu4e-views-autoloads.el
