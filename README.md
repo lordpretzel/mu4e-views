@@ -1,4 +1,5 @@
-[![License: GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.txt) [![Build Status](https://secure.travis-ci.org/lordpretzel/mu4e-views.png)](http://travis-ci.org/lordpretzel/mu4e-views)
+[![License: GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.txt)
+<!-- [![Build Status](https://secure.travis-ci.org/lordpretzel/mu4e-views.png)](http://travis-ci.org/lordpretzel/mu4e-views) -->
 <!-- [![GitHub release](https://img.shields.io/github/release/lordpretzel/mu4e-views.svg?maxAge=86400)](https://github.com/lordpretzel/mu4e-views/releases) -->
 <!-- [![MELPA Stable](http://stable.melpa.org/packages/mu4e-views-badge.svg)](http://stable.melpa.org/#/mu4e-views) -->
 <!-- [![MELPA](http://melpa.org/packages/mu4e-views-badge.svg)](http://melpa.org/#/mu4e-views) -->
@@ -92,6 +93,28 @@ You may want to bind this to a key in `mu4e-headers-mode-map`.
 
 ~~~elisp
 (define-key mu4e-headers-mode-map (kbd "v") mu4e-views-mu4e-select-view-msg-method)
+~~~
+
+Here is an example setup:
+
+~~~elisp
+(use-package mu4e-views
+  :after mu4e
+  :defer nil
+  :quelpa ((mu4e-views
+            :fetcher github
+            :repo "lordpretzel/mu4e-views")
+           :upgrade t)
+  (:map mu4e-headers-mode-map
+	    ("v" . mu4e-views-mu4e-select-view-msg-method) ;; select viewing method
+	    ("M-n" . mu4e-views-cursor-msg-view-window-down) ;; from headers window scroll the email view
+	    ("M-p" . mu4e-views-cursor-msg-view-window-up) ;; from headers window scroll the email view
+	    )
+  :config
+  (setq mu4e-views-default-view-method "html") ;; make xwidgets default
+  (mu4e-views-mu4e-use-view-msg-method "html") ;; select the default
+  (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window) ;; when pressing n and p stay in the current window
+  )
 ~~~
 
 ### Settings
