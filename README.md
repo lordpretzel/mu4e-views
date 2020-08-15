@@ -7,11 +7,11 @@
 
 # mu4e-views
 
- [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) is great, but viewing of html emails is suboptimal.  This packages enables the user to choose how to view emails.  It's main use case is to view emails using an xwidgets window, but the custom viewing methods are also supported.
+ [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) is great, but viewing of html emails is suboptimal.  This packages enables the user to choose how to view emails.  It's main use case is to view html emails using an xwidgets window, but custom viewing methods are also supported.
 
 ![viewing-html-emails](./screencasts/mu4e-views.gif)
 
-Also provides methods for user defined viewing methods to access content extracted from an email, e.g., urls or attachments.  This makes it easier to build new views.
+Also provides methods to access content extracted from an email, e.g., urls or attachments. This makes it easier to build user defined viewing methods.
 
 ## Installation
 
@@ -39,8 +39,8 @@ Using [use-package](https://github.com/jwiegley/use-package) with [quelpa](https
 ~~~elisp
 (use-package
   :quelpa ((mu4e-views
-  :fetcher github
-  :repo "lordpretzel/mu4e-views")
+    :fetcher github
+    :repo "lordpretzel/mu4e-views")
   :upgrade t)
 )
 ~~~
@@ -51,7 +51,7 @@ Using [use-package](https://github.com/jwiegley/use-package) with [straight.el](
 
 ~~~elisp
 (use-package mu4e-views
-  :straight (mu4e-views :type git :host github :repo "lordpretzel/mu4e-views")
+  :straight (mu4e-views :type git :host github :repo "lordpretzel/mu4e-views"))
 ~~~
 
 ### Source
@@ -87,6 +87,12 @@ After the package is loaded, you can call `mu4e-views/mu4e-select-view-msg-metho
 - `html` - uses `xwidgets` to show the email
 - `text` - the default `mu4e` method for viewing emails that translates the email into text
 - `browser` - open the email using `browse-url`, e.g., in your system browser
+
+You may want to bind this to a key in `mu4e-headers-mode-map`.
+
+~~~elisp
+(define-key mu4e-headers-mode-map (kbd "v") mu4e-views/mu4e-select-view-msg-method)
+~~~
 
 ### Settings
 
