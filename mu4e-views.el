@@ -142,11 +142,12 @@
 	;; do not update anything if the method is the same
 	(unless (eq cmd oldmethod)
 	  (setq mu4e-views--current-viewing-method cmd)
-	  (if (eq cmd 'mu4e-headers-view-message)
+	  (if (eq (plist-get cmd :viewfunc) 'mu4e-headers-view-message)
 		  ;; use standard mu4e method (remove all advice)
           (progn
 		    (mu4e-views-advice-unadvice 'mu4e~view-internal)
-            (mu4e-views-advice-unadvice 'mu4e-headers-view-message))
+            (mu4e-views-advice-unadvice 'mu4e-headers-view-message)
+            (mu4e-views-advice-unadvice 'mu4e~headers-move))
 		;; replace advice
         (progn
 		  (advice-add 'mu4e~view-internal :override 'mu4e-views-view-msg-internal)
