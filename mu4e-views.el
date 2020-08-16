@@ -386,10 +386,10 @@
          (docid (or (mu4e-message-field msg :docid)
                     (mu4e-warn "No message at point")))
          (decrypt (mu4e~decrypt-p msg))
-         (verify  (not mu4e-view-use-gnus))
-         (viewwin (if (plist-get mu4e-views--current-viewing-method :no-view-window)
-                      nil
-                    (mu4e-views-headers-redraw-get-view-window))))
+         (verify  (not mu4e-view-use-gnus)))
+         ;; (viewwin (if (plist-get mu4e-views--current-viewing-method :no-view-window)
+         ;;              nil
+         ;;            (mu4e-views-headers-redraw-get-view-window))))
     ;; (when viewwin
     ;;   (select-window viewwin)
     ;;   ;; show some 'loading...' buffer
@@ -482,10 +482,10 @@
 (defun mu4e-views-mu4e-headers-move (n)
   "Move by 'N` steps in the headers view.  Negative numbers move backwards.  If message view is open show message in the view."
   (interactive)
-  (switch-to-buffer (mu4e-get-headers-buffer))
-  (setq mu4e-views--called-from-view t)
-  (setq mu4e-views--header-selected nil)
-  (mu4e~headers-move n))
+  (with-current-buffer (mu4e-get-headers-buffer)
+    (setq mu4e-views--called-from-view t)
+    (setq mu4e-views--header-selected nil)
+    (mu4e~headers-move n)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-after-headers-mode (n)
