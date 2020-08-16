@@ -389,15 +389,18 @@
          (viewwin (if (plist-get mu4e-views--current-viewing-method :no-view-window)
                       nil
                     (mu4e-views-headers-redraw-get-view-window))))
-    (when viewwin
-      (select-window viewwin)
-      ;; show some 'loading...' buffer
-      (unless (buffer-live-p mu4e~headers-loading-buf)
-        (setq mu4e~headers-loading-buf (get-buffer-create " *mu4e-loading*"))
-        (with-current-buffer mu4e~headers-loading-buf
-          (mu4e-loading-mode)))
-      (switch-to-buffer mu4e~headers-loading-buf))
-    (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))
+    ;; (when viewwin
+    ;;   (select-window viewwin)
+    ;;   ;; show some 'loading...' buffer
+    ;;   (unless (buffer-live-p mu4e~headers-loading-buf)
+    ;;     (setq mu4e~headers-loading-buf (get-buffer-create " *mu4e-loading*"))
+    ;;     (with-current-buffer mu4e~headers-loading-buf
+    ;;       (mu4e-loading-mode)))
+    ;;   (switch-to-buffer mu4e~headers-loading-buf))
+    (let ((mu4e-ver (version-to-list mu4e-mu-version)))
+      (if (and (eq (car mu4e-ver) 1) (eq (cadr mu4e-ver) 2))
+          (mu4e~proc-view docid decrypt verify)
+          (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))))
 
 (defun mu4e-views-view-msg-internal (msg)
   "Replacement for `mu4e-view-msg-internal'.  Takes `mu4e' message `MSG' as input."
