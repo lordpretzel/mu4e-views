@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; For a full copy of the GNU General Public License
-;; see <http://www.gnu.org/licenses/>.
+;; see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -142,17 +142,17 @@
 	;; do not update anything if the method is the same
 	(unless (eq cmd oldmethod)
 	  (setq mu4e-views--current-viewing-method cmd)
-	  (if (eq (plist-get cmd :viewfunc) 'mu4e-headers-view-message)
+	  (if (eq (plist-get cmd :viewfunc) #'mu4e-headers-view-message)
 		  ;; use standard mu4e method (remove all advice)
           (progn
-		    (mu4e-views-advice-unadvice 'mu4e~view-internal)
-            (mu4e-views-advice-unadvice 'mu4e-headers-view-message)
-            (mu4e-views-advice-unadvice 'mu4e~headers-move))
+		    (mu4e-views-advice-unadvice #'mu4e~view-internal)
+            (mu4e-views-advice-unadvice #'mu4e-headers-view-message)
+            (mu4e-views-advice-unadvice #'mu4e~headers-move))
 		;; replace advice
         (progn
-		  (advice-add 'mu4e~view-internal :override 'mu4e-views-view-msg-internal)
-          (advice-add 'mu4e-headers-view-message :override 'mu4e-views-mu4e-headers-view-message)
-          (advice-add 'mu4e~headers-move :after 'mu4e-views-mu4e-after-headers-mode))))))
+		  (advice-add 'mu4e~view-internal :override #'mu4e-views-view-msg-internal)
+          (advice-add 'mu4e-headers-view-message :override #'mu4e-views-mu4e-headers-view-message)
+          (advice-add 'mu4e~headers-move :after #'mu4e-views-mu4e-after-headers-mode))))))
 
 ;; ********************************************************************************
 ;; functions for viewing a mu4e message in xwidgets
@@ -249,16 +249,16 @@
 	(unless (or html txt)
 	  (mu4e-error "No body part for this message"))
 	;; remove hooks and advices that are not needed for writing constructed content to a file, but slow us down
-	(mu4e-views-advice-remove-if-def 'set-visited-file-name 'doom-modeline-update-buffer-file-name)
-	(mu4e-views-advice-remove-if-def 'set-visited-file-name 'lsp--on-set-visited-file-name)
-	(mu4e-views-advice-remove-if-def 'basic-save-buffer 'polymode-with-current-base-buffer)
-	(mu4e-views-advice-remove-if-def 'vc-refresh-state 'doom-modeline-update-vcs-text)
-	(mu4e-views-advice-remove-if-def 'vc-refresh-state 'doom-modeline-update-vcs-icon)
-	(mu4e-views-advice-remove-if-def 'rename-buffer 'doom-modeline-update-buffer-file-name)
-	(mu4e-views-advice-add-if-def 'set-auto-mode :override 'mu4e-views-set-auto-mode-dummy)
-	(mu4e-views-advice-add-if-def 'vc-refresh-state :override 'mu4e-views-vc-refresh-state-dummy)
-	(mu4e-views-advice-add-if-def 'vc-before-save :override 'mu4e-views-vc-before-save-dummy)
-	(mu4e-views-advice-add-if-def 'vc-after-save :override 'mu4e-views-vc-after-save-dummy)
+	(mu4e-views-advice-remove-if-def #'set-visited-file-name #'doom-modeline-update-buffer-file-name)
+	(mu4e-views-advice-remove-if-def #'set-visited-file-name #'lsp--on-set-visited-file-name)
+	(mu4e-views-advice-remove-if-def #'basic-save-buffer #'polymode-with-current-base-buffer)
+	(mu4e-views-advice-remove-if-def #'vc-refresh-state #'doom-modeline-update-vcs-text)
+	(mu4e-views-advice-remove-if-def #'vc-refresh-state #'doom-modeline-update-vcs-icon)
+	(mu4e-views-advice-remove-if-def #'rename-buffer #'doom-modeline-update-buffer-file-name)
+	(mu4e-views-advice-add-if-def #'set-auto-mode :override #'mu4e-views-set-auto-mode-dummy)
+	(mu4e-views-advice-add-if-def #'vc-refresh-state :override #'mu4e-views-vc-refresh-state-dummy)
+	(mu4e-views-advice-add-if-def #'vc-before-save :override #'mu4e-views-vc-before-save-dummy)
+	(mu4e-views-advice-add-if-def #'vc-after-save :override #'mu4e-views-vc-after-save-dummy)
 	(let ((cache-before-save-hook before-save-hook)
 		  (cache-after-save-hook after-save-hook))
 	  (with-temp-buffer
@@ -289,16 +289,16 @@
 			  attachments)
 		(save-buffer)
 		;; restore normal behaviour
-		(mu4e-views-advice-add-if-def 'set-visited-file-name :after 'doom-modeline-update-buffer-file-name)
-		(mu4e-views-advice-add-if-def 'set-visited-file-name :around 'lsp--on-set-visited-file-name)
-		(mu4e-views-advice-add-if-def 'basic-save-buffer :around 'polymode-with-current-base-buffer)
-		(mu4e-views-advice-add-if-def 'vc-refresh-state :after 'doom-modeline-update-vcs-text)
-		(mu4e-views-advice-add-if-def 'vc-refresh-state :after 'doom-modeline-update-vcs-icon)
-		(mu4e-views-advice-add-if-def 'rename-buffer :after 'doom-modeline-update-buffer-file-name)
-		(mu4e-views-advice-remove-if-def 'set-auto-mode 'mu4e-views-set-auto-mode-dummy)
-		(mu4e-views-advice-remove-if-def 'vc-refresh-state 'mu4e-views-vc-refresh-state-dummy)
-		(mu4e-views-advice-remove-if-def 'vc-before-save 'mu4e-views-vc-before-save-dummy)
-		(mu4e-views-advice-remove-if-def 'vc-after-save 'mu4e-views-vc-after-save-dummy)
+		(mu4e-views-advice-add-if-def #'set-visited-file-name :after #'doom-modeline-update-buffer-file-name)
+		(mu4e-views-advice-add-if-def #'set-visited-file-name :around #'lsp--on-set-visited-file-name)
+		(mu4e-views-advice-add-if-def #'basic-save-buffer :around #'polymode-with-current-base-buffer)
+		(mu4e-views-advice-add-if-def #'vc-refresh-state :after #'doom-modeline-update-vcs-text)
+		(mu4e-views-advice-add-if-def #'vc-refresh-state :after #'doom-modeline-update-vcs-icon)
+		(mu4e-views-advice-add-if-def #'rename-buffer :after #'doom-modeline-update-buffer-file-name)
+		(mu4e-views-advice-remove-if-def #'set-auto-mode #'mu4e-views-set-auto-mode-dummy)
+		(mu4e-views-advice-remove-if-def #'vc-refresh-state #'mu4e-views-vc-refresh-state-dummy)
+		(mu4e-views-advice-remove-if-def #'vc-before-save #'mu4e-views-vc-before-save-dummy)
+		(mu4e-views-advice-remove-if-def #'vc-after-save #'mu4e-views-vc-after-save-dummy)
 		(setq before-save-hook cache-before-save-hook)
 		(setq after-save-hook cache-after-save-hook)
 		(lax-plist-put msg :html-file tmpfile)
@@ -387,9 +387,9 @@
                     (mu4e-warn "No message at point")))
          (decrypt (mu4e~decrypt-p msg))
          (verify  (not mu4e-view-use-gnus)))
-         ;; (viewwin (if (plist-get mu4e-views--current-viewing-method :no-view-window)
-         ;;              nil
-         ;;            (mu4e-views-headers-redraw-get-view-window))))
+    ;; (viewwin (if (plist-get mu4e-views--current-viewing-method :no-view-window)
+    ;;              nil
+    ;;            (mu4e-views-headers-redraw-get-view-window))))
     ;; (when viewwin
     ;;   (select-window viewwin)
     ;;   ;; show some 'loading...' buffer
@@ -401,7 +401,7 @@
     (let ((mu4e-ver (version-to-list mu4e-mu-version)))
       (if (and (eq (car mu4e-ver) 1) (eq (cadr mu4e-ver) 2))
           (mu4e~proc-view docid decrypt verify)
-          (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))))
+        (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))))
 
 (defun mu4e-views-view-msg-internal (msg)
   "Replacement for `mu4e-view-msg-internal'.  Takes `mu4e' message `MSG' as input."
@@ -645,18 +645,20 @@
 ;; Minor mode that bounds keys to access mu4e email actions like saving attachments.
 ;; create a custom keymap for mu4e-views-view-actions-mode-map
 (defvar mu4e-views-view-actions-mode-map
-  (make-keymap)
-  "Mu4e-views-view-actions-mode keymap.")
-(define-key mu4e-views-view-actions-mode-map (kbd "q") 'mu4e-views-mu4e-headers-windows-only)
-(define-key mu4e-views-view-actions-mode-map (kbd "n") 'mu4e-views-mu4e-headers-next)
-(define-key mu4e-views-view-actions-mode-map (kbd "p") 'mu4e-views-mu4e-headers-prev)
-(define-key mu4e-views-view-actions-mode-map (kbd "o") 'mu4e-views-mu4e-view-open-attachment)
-(define-key mu4e-views-view-actions-mode-map (kbd "g") 'mu4e-views-mu4e-view-go-to-url)
-(define-key mu4e-views-view-actions-mode-map (kbd "k") 'mu4e-views-mu4e-view-save-url)
-(define-key mu4e-views-view-actions-mode-map (kbd "e") 'mu4e-views-mu4e-view-save-attachment)
-(define-key mu4e-views-view-actions-mode-map (kbd "E") 'mu4e-views-mu4e-view-save-all-attachments)
-(define-key mu4e-views-view-actions-mode-map (kbd "a") 'mu4e-views-mu4e-view-action)
-(define-key mu4e-views-view-actions-mode-map (kbd "f") 'mu4e-views-mu4e-view-fetch-url)
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "q") #'mu4e-views-mu4e-headers-windows-only)
+    (define-key km (kbd "n") #'mu4e-views-mu4e-headers-next)
+    (define-key km (kbd "p") #'mu4e-views-mu4e-headers-prev)
+    (define-key km (kbd "o") #'mu4e-views-mu4e-view-open-attachment)
+    (define-key km (kbd "g") #'mu4e-views-mu4e-view-go-to-url)
+    (define-key km (kbd "k") #'mu4e-views-mu4e-view-save-url)
+    (define-key km (kbd "e") #'mu4e-views-mu4e-view-save-attachment)
+    (define-key km (kbd "E") #'mu4e-views-mu4e-view-save-all-attachments)
+    (define-key km (kbd "a") #'mu4e-views-mu4e-view-action)
+    (define-key km (kbd "f") #'mu4e-views-mu4e-view-fetch-url)
+    km)
+  "Mu4e-views-view-actions-mode keymap."
+  )
 
 ;; create a minor mode mainly for custom keys
 (define-minor-mode mu4e-views-view-actions-mode
