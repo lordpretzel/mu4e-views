@@ -44,6 +44,7 @@
 (require 'ivy)
 (require 'xwidgets-reuse)
 (require 'cl-lib)
+(require 'thingatpt)
 
 ;; ********************************************************************************
 ;; Customize and defvars
@@ -450,7 +451,9 @@
 		 (mode (with-selected-window wind major-mode)))
 	(if (eq mode 'xwidget-webkit-mode)
 		(with-selected-window wind
-		  (xwidget-webkit-scroll-up 100))
+          (if (>= emacs-major-version 27)
+		      (xwidget-webkit-scroll-up 100)
+            (xwidget-webkit-scroll-up)))
 	  (scroll-other-window 2))))
 
 ;;;###autoload
@@ -461,7 +464,9 @@
 		 (mode (with-selected-window wind major-mode)))
 	(if (eq mode 'xwidget-webkit-mode)
 		(with-selected-window wind
-		  (xwidget-webkit-scroll-down 100))
+          (if (>= emacs-major-version 27)
+		      (xwidget-webkit-scroll-down 100)
+            (xwidget-webkit-scroll-down)))
 	  (scroll-other-window 2))))
 
 ;;;###autoload
@@ -657,8 +662,7 @@
     (define-key km (kbd "a") #'mu4e-views-mu4e-view-action)
     (define-key km (kbd "f") #'mu4e-views-mu4e-view-fetch-url)
     km)
-  "Mu4e-views-view-actions-mode keymap."
-  )
+  "Mu4e-views-view-actions-mode keymap.")
 
 ;; create a minor mode mainly for custom keys
 (define-minor-mode mu4e-views-view-actions-mode
