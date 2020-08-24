@@ -92,7 +92,7 @@ After the package is loaded, you can call `mu4e-views-mu4e-select-view-msg-metho
 You may want to bind this to a key in `mu4e-headers-mode-map`.
 
 ~~~elisp
-(define-key mu4e-headers-mode-map (kbd "v") mu4e-views-mu4e-select-view-msg-method)
+(define-key mu4e-headers-mode-map (kbd "v") 'mu4e-views-mu4e-select-view-msg-method)
 ~~~
 
 Here is an example setup:
