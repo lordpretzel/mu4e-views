@@ -3,7 +3,7 @@
 ;; Author: Boris Glavic <lordpretzel@gmail.com>
 ;; Maintainer: Boris Glavic <lordpretzel@gmail.com>
 ;; Version: 0.1
-;; Package-Requires: ((emacs "26.1") (ivy "0.9.0") (xwidgets-reuse "0.2") (ht "2.2"))
+;; Package-Requires: ((emacs "26.1") (xwidgets-reuse "0.2") (ht "2.2"))
 ;; Homepage: https://github.com/lordpretzel/mu4e-views
 ;; Keywords: mail
 
