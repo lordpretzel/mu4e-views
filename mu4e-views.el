@@ -2,7 +2,7 @@
 
 ;; Author: Boris Glavic <lordpretzel@gmail.com>
 ;; Maintainer: Boris Glavic <lordpretzel@gmail.com>
-;; Version: 0.1
+;; Version: 0.3
 ;; Package-Requires: ((emacs "26.1") (xwidgets-reuse "0.2") (ht "2.2"))
 ;; Homepage: https://github.com/lordpretzel/mu4e-views
 ;; Keywords: mail
@@ -37,7 +37,6 @@
 
 ;;; Code:
 ;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
-;;TODO let user choose completion backend
 (require 'seq)
 (require 'mu4e)
 (require 'ht)
