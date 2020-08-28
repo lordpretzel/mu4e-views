@@ -41,7 +41,6 @@
 (require 'seq)
 (require 'mu4e)
 (require 'ht)
-(require 'ivy)
 (require 'xwidgets-reuse)
 (require 'cl-lib)
 (require 'thingatpt)
@@ -89,6 +88,16 @@
   :group 'mu4e-views
   :type 'string)
 
+(defcustom mu4e-views-completion-method
+  'default
+  "The completion framework to use when letting the user choose an opion from a list.  The default is to just use completing read."
+  :group 'mu4e-views
+  :type '(radio (const :tag "Use completing read." 'default)
+                (const :tag "Use ivy." 'ivy)
+                (const :tag "Use helm." 'helm)
+                (const :tag "Use ido." 'ido)
+                (function :tag "Custom function")))
+
 (defvar mu4e-views--mu4e-select-view-msg-method-history
   nil
   "Store completion history for `mu4e-views-mu4e-select-view-msg-method'.")
@@ -115,7 +124,7 @@
   "Set if we are called from view.")
 
 ;; ********************************************************************************
-;; functions
+;; helper functions for advising
 (defun mu4e-views-advice-unadvice (sym)
   "Remove all advices from symbol SYM."
   (interactive "aFunction symbol: ")
@@ -132,7 +141,51 @@
     (advice-remove f theadvice)))
 
 ;; ********************************************************************************
-;; functions
+;; wrapper for completing read frameworks (adapted from projectile: https://github.com/bbatsov/projectile/)
+(cl-defun mu4e-views-completing-read (prompt choices &key initial-input action history sort caller require-match)
+  "Present a PROMPT with CHOICES.  Optionally, provide INITIAL-INPUT and an ACTION to execute with the chosen option.  If the framework supports it an HISTORY is not nil, then store completion history in HISTORY.  If the framework supports it and SORT is t, then sort CHOICES.  If CALLER is provided and the framework supports it, provide CALLER as a caller.  Otherwise, provide `mu4e-views-completing-read' as a caller.  If REQUIRE-MATCH is provided, then only matching inputs can be selected."
+  (let (res)
+    (setq res
+          (cond
+           ((eq mu4e-views-completion-method 'ido)
+            (ido-completing-read prompt choices nil require-match initial-input history))
+           ((eq mu4e-views-completion-method 'default)
+            (completing-read prompt choices nil require-match initial-input history))
+           ((eq mu4e-views-completion-method 'helm)
+            (if (and (fboundp 'helm)
+                     (fboundp 'helm-make-source))
+                (helm :sources
+                      (helm-make-source "mu4e-views" 'helm-source-sync
+                        :candidates choices
+                        :must-match require-match
+                        :action (if action
+                                    (prog1 action
+                                      (setq action nil))
+                                  #'identity))
+                      :prompt prompt
+                      :input initial-input
+                      :history history
+                      :buffer "*helm-mu4e-views*")
+              (user-error "Please install helm from \
+https://github.com/emacs-helm/helm")))
+           ((eq mu4e-views-completion-method 'ivy)
+            (if (fboundp 'ivy-read)
+                (ivy-read prompt choices
+                          :initial-input initial-input
+                          :action (prog1 action
+                                    (setq action nil))
+                          :caller (or caller 'mu4e-views-completing-read)
+                          :history history
+                          :require-match require-match
+                          :sort sort)
+              (user-error "Please install ivy from \
+https://github.com/abo-abo/swiper")))
+           (t (funcall mu4e-views-completion-method prompt choices))))
+    (if action
+        (funcall action res)
+      res)))
+
+;; ********************************************************************************
 
 ;;;###autoload
 (defun mu4e-views-mu4e-use-view-msg-method (method)

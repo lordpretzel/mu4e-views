@@ -105,12 +105,13 @@ Here is an example setup:
             :fetcher github
             :repo "lordpretzel/mu4e-views")
            :upgrade t)
-  (:map mu4e-headers-mode-map
+  :bind (:map mu4e-headers-mode-map
 	    ("v" . mu4e-views-mu4e-select-view-msg-method) ;; select viewing method
 	    ("M-n" . mu4e-views-cursor-msg-view-window-down) ;; from headers window scroll the email view
 	    ("M-p" . mu4e-views-cursor-msg-view-window-up) ;; from headers window scroll the email view
 	    )
   :config
+  (setq mu4e-views-completion-method 'ivy) ;; use ivy for completion
   (setq mu4e-views-default-view-method "html") ;; make xwidgets default
   (mu4e-views-mu4e-use-view-msg-method "html") ;; select the default
   (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window) ;; when pressing n and p stay in the current window
@@ -119,6 +120,7 @@ Here is an example setup:
 
 ### Settings
 
+- `mu4e-views-completion-method` - framework used for completion.
 - `mu4e-views-mu4e-html-email-header-style` - CSS style for showing the header of an email (`mu4e-views` injects this header into the html text of the email). Customize to change appearance of this header.
 - `mu4e-views-next-previous-message-behaviour` - per default `mu4e` switches from the `headers` window to the `view` window once an email is opened, e.g., by pressing `n`. This option customizes this behavior:
   - `always-switch-to-headers` - always switch back the `headers` window
