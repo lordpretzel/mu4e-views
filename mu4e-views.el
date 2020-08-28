@@ -92,10 +92,10 @@
   'default
   "The completion framework to use when letting the user choose an opion from a list.  The default is to just use completing read."
   :group 'mu4e-views
-  :type '(radio (const :tag "Use completing read." 'default)
-                (const :tag "Use ivy." 'ivy)
-                (const :tag "Use helm." 'helm)
-                (const :tag "Use ido." 'ido)
+  :type '(radio (const :tag "Use completing read." default)
+                (const :tag "Use ivy." ivy)
+                (const :tag "Use helm." helm)
+                (const :tag "Use ido." ido)
                 (function :tag "Custom function")))
 
 (defvar mu4e-views--mu4e-select-view-msg-method-history
@@ -583,7 +583,7 @@ https://github.com/abo-abo/swiper")))
   "Select a url included in a mu4e message."
   (interactive)
   (mu4e-views-mu4e-extract-urls-from-msg mu4e-views--current-mu4e-message)
-  (ivy-read "Select url: " ;; prompt
+  (mu4e-views-completing-read "Select url: " ;; prompt
 			;;(ht-map (lambda (k v) v) mu4e~view-link-map) ;; collection to complete over
 			(lax-plist-get mu4e-views--current-mu4e-message :body-urls)
 			:action (lambda (x)
@@ -599,7 +599,7 @@ https://github.com/abo-abo/swiper")))
   (let* ((attachments (mapcar (lambda (k) (list k (mu4e~view-get-attach mu4e-views--current-mu4e-message k))) (ht-keys mu4e~view-attach-map)))
 		 (names (mapcar (lambda (x) (mu4e-message-part-field (cadr x) :name)) attachments))
 		 (name-to-index (mapcar (lambda (x) (cons (plist-get (cadr x) :name) (car x))) attachments)))
-	(ivy-read "Select url: " ;; prompt
+	(mu4e-views-completing-read "Select url: " ;; prompt
 			  names ;; collection to complete over
 			  :action (lambda (x)
 						(let ((index (cdr (assoc x name-to-index))))
@@ -615,7 +615,7 @@ https://github.com/abo-abo/swiper")))
   (let* ((attachments (mapcar (lambda (k) (list k (mu4e~view-get-attach mu4e-views--current-mu4e-message k))) (ht-keys mu4e~view-attach-map)))
 		 (names (mapcar (lambda (x) (mu4e-message-part-field (cadr x) :name)) attachments))
 		 (name-to-index (mapcar (lambda (x) (cons (plist-get (cadr x) :name) (car x))) attachments)))
-	(ivy-read "Select attachment(s): " ;; prompt
+	(mu4e-views-completing-read "Select attachment(s): " ;; prompt
 			  names ;; collection to complete over
 			  :action (lambda (x)
 						(let ((index (cdr (assoc x name-to-index))))
@@ -738,7 +738,7 @@ https://github.com/abo-abo/swiper")))
 (defun mu4e-views-mu4e-select-view-msg-method ()
   "Select the method for viewing emails in `mu4e'."
   (interactive)
-  (ivy-read "Select method for viewing mail: " ;; prompt
+  (mu4e-views-completing-read "Select method for viewing mail: " ;; prompt
 			(mapcar (lambda (x) (car x)) mu4e-views-view-commands) ;; collection to complete over
 			:action (lambda (x)
 					  (mu4e-views-mu4e-use-view-msg-method x))
