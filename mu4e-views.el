@@ -27,7 +27,7 @@
 
 ;; `mu4e' is great, but viewing of html emails is suboptimal.  This packages
 ;; enables the user to choose how to view emails.  It's main use case is to view
-;; emails using an xwidgets window, but the user provided viewin methods are
+;; emails using an xwidgets window, but the user provided viewing methods are
 ;; also supported.
 ;;
 ;; Also provides methods for user defined viewing methods to access content
@@ -50,7 +50,12 @@
   '(("text" . (:viewfunc mu4e-headers-view-message)) ;; open with standard mu4e function
 	("html" . (:viewfunc mu4e-views-mu4e-view-xwidget)) ;; open with xwidget
 	("browser" . (:viewfunc mu4e-views-view-in-browser :no-view-window t))) ;; open with browser
-  "A list of commands for viewing messages in mu4e, e.g., translating html into text or opening html, e.g., with xwidgets within Emacs."
+  "A list of commands for viewing messages in mu4e.
+
+Currently supported are translating html into text (text which is
+also the `mu4e' default), opening html in xwidgets within
+Emacs (html), or opening the email's html using
+`browse-url' (browser)."
   :group 'mu4e-views
   :type 'alist)
 
@@ -62,17 +67,31 @@
 
 (defcustom mu4e-views-inject-email-information-into-html
   t
-  "If t then `mu4e-views' will inject email message headers information into the html file for the email.  This is useful for viewing emails in browsers."
+  "Show a email headers (e.g., subject) in the html view.
+
+If t then `mu4e-views' will inject email message headers information into the
+email's html file for the email.  This is useful for viewing emails in
+browsers and xwidgets."
   :group 'mu4e-views
   :type 'boolean)
 
 (defcustom mu4e-views-next-previous-message-behaviour
   'always-switch-to-headers
-  "Determines the behavior when moving to the next / previous message in the mu4e-headers view.  Default is to stay in the headers views.  Other options are staying in the current view or always moving to the `mu4e-views' window."
+  "Behavior when moving to the next / previous message in the mu4e-headers view.
+
+Default (`always-switch-to-headers') is to stay in the headers views.  Other
+options are staying in the current view (`stick-to-current-window') or always
+moving to the `mu4e-views' window (`always-switch-to-view')."
   :group 'mu4e-views
-  :type '(radio (const :tag "Always switch to mu4e-headers window which shows the list of emails" always-switch-to-headers)
-                (const :tag "Always switch to mu4e-views view window which shows the current email" always-switch-to-view)
-                (const :tag "Always stay in the current window" stick-to-current-window)))
+  :type '(radio (const :tag
+                       "Always switch to mu4e-headers window which shows the list of emails"
+                       always-switch-to-headers)
+                (const :tag
+                       "Always switch to mu4e-views view window which shows the current email"
+                       always-switch-to-view)
+                (const :tag
+                       "Always stay in the current window"
+                       stick-to-current-window)))
 
 (defcustom mu4e-views-mu4e-html-email-header-style
   "<style type=\"text/css\">
@@ -89,7 +108,10 @@
 
 (defcustom mu4e-views-completion-method
   'default
-  "The completion framework to use when letting the user choose an opion from a list.  The default is to just use completing read."
+  "The completion framework to use when letting choosing an option from a list.
+
+The default (`default') is to just use completing read.  Other
+supported options are `ivy', `helm', and `ido'."
   :group 'mu4e-views
   :type '(radio (const :tag "Use completing read." default)
                 (const :tag "Use ivy." ivy)
@@ -109,18 +131,21 @@
   nil
   "Caches the view window.")
 
-;; store message object for the message currently shown in xwidgets message view
 (defvar mu4e-views--current-mu4e-message
   nil
-  "Store the mu4e message object for the message currently shown in `mu4e-views' window.  This enables us to provide mu4e iunctionality in a `mu4e-views' view such as opening or storing attachments which need this object.")
+  "Store the `mu4e' message object for the message shown in `mu4e-views' window.
+
+This enables us to provide `mu4e' functionality in a `mu4e-views'
+view such as opening or storing attachments which need this
+object.")
 
 (defvar mu4e-views--header-selected
   t
-  "Remember whether the user was in the header or view window when moving on to another email.")
+  "On moving to another email, store whether we are in the headers window.")
 
 (defvar mu4e-views--called-from-view
   nil
-  "Set if we are called from view.")
+  "Set if we are called from the view window.")
 
 ;; ********************************************************************************
 ;; helper functions for advising
@@ -130,26 +155,59 @@
   (advice-mapc (lambda (advice _props) (advice-remove sym advice)) sym))
 
 (defun mu4e-views-advice-add-if-def (f type theadvice)
-  "Add advice `THEADVICE' as type `TYPE' to function `F' if the function to be advised and the advising function both exists."
+  "Add advice THEADVICE as type TYPE to function F.
+
+Only do this if the function to be advised (F) and the advising
+function (THEADVICE) both exists."
   (when (and (fboundp f)  (fboundp theadvice))
     (advice-add f type theadvice)))
 
 (defun mu4e-views-advice-remove-if-def (f theadvice)
-  "Remove advice `THEADVICE' from function `F' if the function to be advised and the advising function both exists."
+  "Remove advice THEADVICE from function F.
+
+Only do this if the function to be advised (F) and the advising
+function (THEADVICE) both exists."
   (when (and (fboundp f)  (fboundp theadvice))
     (advice-remove f theadvice)))
 
 ;; ********************************************************************************
-;; wrapper for completing read frameworks (adapted from projectile: https://github.com/bbatsov/projectile/)
-(cl-defun mu4e-views-completing-read (prompt choices &key initial-input action history sort caller require-match)
-  "Present a PROMPT with CHOICES.  Optionally, provide INITIAL-INPUT and an ACTION to execute with the chosen option.  If the framework supports it an HISTORY is not nil, then store completion history in HISTORY.  If the framework supports it and SORT is t, then sort CHOICES.  If CALLER is provided and the framework supports it, provide CALLER as a caller.  Otherwise, provide `mu4e-views-completing-read' as a caller.  If REQUIRE-MATCH is provided, then only matching inputs can be selected."
+;; wrapper for completing read frameworks (adapted from projectile:
+;; https://github.com/bbatsov/projectile/)
+(cl-defun mu4e-views-completing-read (prompt
+                                      choices
+                                      &key initial-input
+                                      action
+                                      history
+                                      sort
+                                      caller
+                                      require-match)
+  "Present a PROMPT with CHOICES.
+
+Optionally, provide INITIAL-INPUT and an ACTION to execute with
+the chosen option.  If the completion framework supports it and
+HISTORY is not nil, then store completion history in HISTORY.  If
+the framework supports it and SORT is t, then sort CHOICES.  If
+CALLER is provided and the framework supports it, provide CALLER
+as a caller.  Otherwise, provide `mu4e-views-completing-read' as
+a caller.  If REQUIRE-MATCH is provided, then only matching
+inputs can be selected."
   (let (res)
     (setq res
           (cond
            ((eq mu4e-views-completion-method 'ido)
-            (ido-completing-read prompt choices nil require-match initial-input history))
+            (ido-completing-read prompt
+                                 choices
+                                 nil
+                                 require-match
+                                 initial-input
+                                 history))
            ((eq mu4e-views-completion-method 'default)
-            (completing-read prompt choices nil require-match initial-input history))
+            (completing-read prompt
+                             choices
+                             nil
+                             require-match
+                             initial-input
+                             history))
            ((eq mu4e-views-completion-method 'helm)
             (if (and (fboundp 'helm)
                      (fboundp 'helm-make-source))
@@ -188,7 +246,7 @@ https://github.com/abo-abo/swiper")))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-use-view-msg-method (method)
-  "Apply this method `METHOD' for viewing emails in mu4e-headers view."
+  "Apply METHOD for viewing emails in mu4e-headers view."
   (let
 	  ((cmd (cdr (assoc method mu4e-views-view-commands)))
 	   (oldmethod mu4e-views--current-viewing-method))
@@ -202,16 +260,18 @@ https://github.com/abo-abo/swiper")))
             (mu4e-views-advice-unadvice #'mu4e-headers-view-message)
             (mu4e-views-advice-unadvice #'mu4e~headers-move))
 		;; replace advice
-        (progn
-		  (advice-add 'mu4e~view-internal :override #'mu4e-views-view-msg-internal)
-          (advice-add 'mu4e-headers-view-message :override #'mu4e-views-mu4e-headers-view-message)
-          (advice-add 'mu4e~headers-move :after #'mu4e-views-mu4e-after-headers-mode))))))
+		(advice-add 'mu4e~view-internal
+                    :override #'mu4e-views-view-msg-internal)
+        (advice-add 'mu4e-headers-view-message
+                    :override #'mu4e-views-mu4e-headers-view-message)
+        (advice-add 'mu4e~headers-move
+                    :after #'mu4e-views-mu4e-after-headers-mode)))))
 
 ;; ********************************************************************************
 ;; functions for viewing a mu4e message in xwidgets
 
 (defun mu4e-views-mu4e-view-xwidget (html msg win)
-  "View message `MSG' with `HTML' content in xwidget using window `WIN'."
+  "View message MSG with HTML content in xwidget using window WIN."
   (interactive)
   (ignore msg)
   (unless (fboundp 'xwidget-webkit-browse-url)
@@ -227,12 +287,13 @@ https://github.com/abo-abo/swiper")))
 ;; functions viewing email in a webbrowser (available as action and as a view method)
 
 (defun mu4e-views-mu4e-view-in-browser-action (msg)
-  "Open email `MSG' in browser using `browse-url'."
+  "Open email MSG in browser using `browse-url'."
   (interactive)
-  (browse-url (concat "file://" (mu4e-views-mu4e~write-body-and-headers-to-html msg))))
+  (browse-url (concat "file://"
+                      (mu4e-views-mu4e~write-body-and-headers-to-html msg))))
 
 (defun mu4e-views-view-in-browser (html msg)
-  "Open email `MSG` with content `HTML' using `browse-url'."
+  "Open email `MSG` with content HTML using `browse-url'."
   (ignore msg)
   (browse-url (concat "file://" html)))
 
@@ -244,41 +305,90 @@ https://github.com/abo-abo/swiper")))
 ;; functions for writing a message to HTML and making it accessible to custom views
 
 (defun mu4e-views-mu4e-email-headers-as-html (msg)
-  "Create formatted HTML for headers like subject and from/to of email `MSG'."
+  "Create formatted html for headers like subject and from/to of email MSG."
   (interactive)
-  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by mu4e-views--current-mu4e-message)
-  (cl-flet ((wrap-row (header content id) (concat "<div class=\"mu4e-mu4e-views-header-row\"><div class=\"mu4e-mu4e-views-mail-header\">" header "</div>: <div class=\"mu4e-mu4e-views-header-content\" id=\"" id "\">" content "</div></div>"))
-			(wrap-row-multi (headers) (concat "<div class=\"mu4e-mu4e-views-header-row\">"
-									          (mapconcat (lambda (l) (let ((header (nth 0 l))
-												                           (content (nth 1 l))
-												                           (id (nth 2 l)))
-												                       (concat "<div class=\"mu4e-mu4e-views-mail-header\">"
-													                           header "</div>: <div class=\"mu4e-mu4e-views-header-content\" id=\"" id "\">"
-													                           content "</div>")))
-										                 headers "")
-									          "</div>")))
+  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by
+   mu4e-views--current-mu4e-message)
+  (cl-flet ((wrap-row (header content id)
+                      (concat "<div class=\"mu4e-mu4e-views-header-row\">"
+                              "<div class=\"mu4e-mu4e-views-mail-header\">"
+                              header "</div>: <div class=\"mu4e-mu4e-views-header-content\" id=\""
+                              id "\">"
+                              content "</div></div>"))
+			(wrap-row-multi (headers)
+                            (concat "<div class=\"mu4e-mu4e-views-header-row\">"
+									(mapconcat
+                                     (lambda (l) (let ((header (nth 0 l))
+												       (content (nth 1 l))
+												       (id (nth 2 l)))
+												   (concat "<div class=\"mu4e-mu4e-views-mail-header\">"
+													       header "</div>: <div class=\"mu4e-mu4e-views-header-content\" id=\""
+                                                           id "\">"
+													       content "</div>")))
+										       headers "")
+									"</div>")))
 	(with-temp-buffer
 	  (insert (concat "<div class=\"mu4e-mu4e-views-mail-headers\">"))
-	  (insert (wrap-row "from" (mapconcat (lambda (mail) (concat "<div class=\"mu4e-mu4e-views-email\">" (car mail) " (" (cdr mail) ")</div>")) (mu4e-message-field msg :from) "") "mu4e-from"))
-	  (insert (wrap-row "to" (mapconcat (lambda (mail) (concat "<div class=\"mu4e-mu4e-views-email\">" (car mail) " (" (cdr mail) ")</div>"))  (mu4e-message-field msg :to) "") "mu4e-to"))
+	  (insert (wrap-row "from"
+                        (mapconcat
+                         (lambda (mail)
+                           (concat "<div class=\"mu4e-mu4e-views-email\">"
+                                   (car mail) " ("
+                                   (cdr mail) ")</div>"))
+                         (mu4e-message-field msg :from) "")
+                        "mu4e-from"))
+	  (insert (wrap-row "to" (mapconcat
+                              (lambda (mail)
+                                (concat "<div class=\"mu4e-mu4e-views-email\">"
+                                        (car mail) " ("
+                                        (cdr mail) ")</div>"))
+                              (mu4e-message-field msg :to) "")
+                        "mu4e-to"))
 	  (when (mu4e-message-field msg :cc)
-		(insert (wrap-row "cc" (mapconcat (lambda (mail) (concat "<div class=\"mu4e-mu4e-views-email\">" (car mail) " (" (cdr mail) ")</div>"))  (mu4e-message-field msg :cc) "") "mu4e-cc")))
+		(insert (wrap-row "cc" (mapconcat
+                                (lambda (mail)
+                                  (concat "<div class=\"mu4e-mu4e-views-email\">"
+                                          (car mail) " ("
+                                          (cdr mail) ")</div>"))
+                                (mu4e-message-field msg :cc) "")
+                          "mu4e-cc")))
 	  (when (mu4e-message-field msg :bcc)
-		(insert (wrap-row "bcc" (mapconcat (lambda (mail) (concat "<div class=\"mu4e-mu4e-views-email\">" (car mail) " (" (cdr mail) ")</div>"))  (mu4e-message-field msg :bcc) "") "mu4e-bcc")))
+		(insert (wrap-row "bcc" (mapconcat
+                                 (lambda (mail)
+                                   (concat "<div class=\"mu4e-mu4e-views-email\">"
+                                           (car mail) " ("
+                                           (cdr mail) ")</div>"))
+                                 (mu4e-message-field msg :bcc) "")
+                          "mu4e-bcc")))
 	  (insert (wrap-row "subject" (mu4e-message-field msg :subject) "mu4e-subject"))
 	  (insert (wrap-row-multi (list
-							   (list "date" (format-time-string mu4e-view-date-format
-											                    (mu4e-message-field msg :date)) "mu4e-date")
-							   (list "size" (mu4e-display-size (mu4e-message-field msg :size)) "mu4e-size")
-							   (list "maildir" (mu4e-message-field msg :maildir) "mu4e-maildir"))))
-	  (let ((attachments (mapcar (lambda (k) (mu4e~view-get-attach mu4e-views--current-mu4e-message k)) (ht-keys mu4e~view-attach-map))))
+							   (list "date"
+                                     (format-time-string mu4e-view-date-format
+											             (mu4e-message-field msg :date))
+                                     "mu4e-date")
+							   (list "size"
+                                     (mu4e-display-size (mu4e-message-field msg :size))
+                                     "mu4e-size")
+							   (list "maildir"
+                                     (mu4e-message-field msg :maildir)
+                                     "mu4e-maildir"))))
+	  (let ((attachments (mapcar
+                          (lambda (k) (mu4e~view-get-attach mu4e-views--current-mu4e-message k))
+                          (ht-keys mu4e~view-attach-map))))
 		(when attachments
-		  (insert (wrap-row "attachments" (mapconcat (lambda (att) (concat "<div class=\"mu4e-mu4e-views-attachment\">" (lax-plist-get att :name) " (" (mu4e-display-size (lax-plist-get att :size)) ")</div>"))  attachments "") "mu4e-attachments"))))
+		  (insert (wrap-row "attachments" (mapconcat
+                                           (lambda (att)
+                                             (concat "<div class=\"mu4e-mu4e-views-attachment\">"
+                                                     (lax-plist-get att :name) " ("
+                                                     (mu4e-display-size (lax-plist-get att :size)) ")</div>"))
+                                           attachments "")
+                            "mu4e-attachments"))))
 	  (insert "</div>")
 	  (buffer-string))))
 
 (defun mu4e-views-set-auto-mode-dummy (&optional keep-mode-if-same)
-  "Do nothing function to replace `set-auto-mode' when just writing to a file.  Ignore `KEEP-MODE-IF-SAME'."
+  "Do nothing function to replace `set-auto-mode' when just writing to a file.
+Ignore `KEEP-MODE-IF-SAME'."
   (ignore keep-mode-if-same))
 
 (defun mu4e-views-vc-refresh-state-dummy ()
@@ -288,10 +398,12 @@ https://github.com/abo-abo/swiper")))
   "Do nothing function to replace `vc-before-save' when just writing to a file.")
 
 (defun mu4e-views-vc-after-save-dummy ()
-  "Do nothing function ro replace `vc-before-after' when just writing to a file.")
+  "Do nothing function to replace `vc-before-after' when just writing to a file.")
 
 (defun mu4e-views-mu4e~write-body-and-headers-to-html (msg)
-  "Write the body (either html or text) and headers of `MSG' to a temporary html file.  Return the filename."
+  "Write the body (either html or text) and headers of MSG to a temporary file.
+
+Return the file's name.  Text messages are converted into html."
   (let* ((html (mu4e-message-field msg :body-html))
 		 (txt (mu4e-message-field msg :body-txt))
 		 (tmpfile (mu4e-make-temp-file "html"))
@@ -361,7 +473,7 @@ https://github.com/abo-abo/swiper")))
 ;; functions that are replace mu4e functions and make sure the mu4e-views window is shown
 ;;TODO check that the window size ratios are ok?
 (defun mu4e-views-mu4e-header-and-view-windows-p ()
-  "Check whether we are already showing the mu4e-headers and (custom) `mu4e-views' windows."
+  "Check whether we are already showing the `mu4e-headers' and our view windows."
   (let ((have-header nil)
         (have-view nil)
         (other-buf nil)
@@ -383,7 +495,7 @@ https://github.com/abo-abo/swiper")))
       nil)))
 
 (defun mu4e-views-get-view-win ()
-  "Return window to use for mu4e-views viewing of emails."
+  "Return window to use for `mu4e-views' viewing of emails."
   (let (win)
     (cl-loop for w in (window-list) do
              (let* ((buf (window-buffer w))
@@ -396,7 +508,11 @@ https://github.com/abo-abo/swiper")))
       (error "View window not found in %s" (window-list)))))
 
 (defun mu4e-views-headers-redraw-get-view-window ()
-  "Unless we already have the correct window layour, close all windows, redraw the headers buffer based on the value of `mu4e-split-view', and return a window for the message view."
+  "Unless we already have the correct window layout, rebuild it.
+
+For that we close all windows, redraw the headers buffer based on
+the value of `mu4e-split-view', and return a window for the
+message view (if the current viewing method needs a window)."
   ;; if single is used then the headers buffer needs to be replaced
   (when (eq mu4e-split-view 'single-window)
     (let ((win (or (and (buffer-live-p (mu4e-get-view-buffer))
@@ -408,30 +524,35 @@ https://github.com/abo-abo/swiper")))
   (if (mu4e-views-mu4e-header-and-view-windows-p)
       (mu4e-views-get-view-win)
     ;; create the window
-    (progn
-      (unless (buffer-live-p (mu4e-get-headers-buffer))
-        (mu4e-error "No headers buffer available"))
-      (switch-to-buffer (mu4e-get-headers-buffer))
-      (delete-other-windows)
-      ;; kill the existing view buffer
-      (when (buffer-live-p (mu4e-get-view-buffer))
-        (kill-buffer (mu4e-get-view-buffer)))
-      ;; get a new view window
-      (setq mu4e~headers-view-win
-            (let* ((new-win-func
-                    (cond
-                     ((eq mu4e-split-view 'horizontal) ;; split horizontally
-                      '(split-window-vertically mu4e-headers-visible-lines))
-                     ((eq mu4e-split-view 'vertical) ;; split vertically
-                      '(split-window-horizontally mu4e-headers-visible-columns)))))
-              (cond ((with-demoted-errors "Unable to split window: %S"
-                       (eval new-win-func)))
-                    (t ;; no splitting; just use the currently selected one
-                     (setq mu4e-views--view-window (selected-window))
-                     (selected-window))))))))
+    (unless (buffer-live-p (mu4e-get-headers-buffer))
+      (mu4e-error "No headers buffer available"))
+    (switch-to-buffer (mu4e-get-headers-buffer))
+    (delete-other-windows)
+    ;; kill the existing view buffer
+    (when (buffer-live-p (mu4e-get-view-buffer))
+      (kill-buffer (mu4e-get-view-buffer)))
+    ;; get a new view window
+    (setq mu4e~headers-view-win
+          (let* ((new-win-func
+                  (cond
+                   ((eq mu4e-split-view 'horizontal) ;; split horizontally
+                    '(split-window-vertically mu4e-headers-visible-lines))
+                   ((eq mu4e-split-view 'vertical) ;; split vertically
+                    '(split-window-horizontally mu4e-headers-visible-columns)))))
+            (cond ((with-demoted-errors "Unable to split window: %S"
+                     (eval new-win-func)))
+                  (t ;; no splitting; just use the currently selected one
+                   (setq mu4e-views--view-window (selected-window))
+                   (selected-window)))))))
 
 (defun mu4e-views-mu4e-headers-view-message ()
-  "View message at point.  If there's an existing window for the view, re-use that one.  If not, create a new one, depending on the value of `mu4e-split-view': if it's a symbol `horizontal' or `vertical', split the window accordingly; if it is nil, replace the current window."
+  "View message at point.
+
+If there's an existing window for the view, re-use that one.  If
+not, create a new one, depending on the value of
+`mu4e-split-view': if it's a symbol `horizontal' or `vertical',
+split the window accordingly; if it is nil, replace the current
+window."
   (interactive)
   (unless (eq major-mode 'mu4e-headers-mode)
     (mu4e-error "Must be in mu4e-headers-mode (%S)" major-mode))
@@ -457,7 +578,9 @@ https://github.com/abo-abo/swiper")))
         (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))))
 
 (defun mu4e-views-view-msg-internal (msg)
-  "Replacement for `mu4e-view-msg-internal'.  Takes `mu4e' message `MSG' as input."
+  "Replacement for `mu4e-view-msg-internal'.
+
+Takes `mu4e' message MSG as input."
   (let* ((viewfunc (plist-get mu4e-views--current-viewing-method :viewfunc))
          (no-window (plist-get mu4e-views--current-viewing-method :no-view-window))
          (html (mu4e-message-field msg :body-html))
@@ -473,16 +596,20 @@ https://github.com/abo-abo/swiper")))
     (if no-window
         ;; method does not use a window, do nothing
         (funcall viewfunc htmlfile msg)
-      ;; method needs a window, reuse or create a new one, then switch to the headers or view window based on `mu4e-views-next-previous-message-behaviour'.
-      (progn
+      ;; method needs a window, reuse or create a new one, then switch to the
+      ;; headers or view window based on
+      ;; `mu4e-views-next-previous-message-behaviour'.
         (funcall viewfunc htmlfile msg (mu4e-views-headers-redraw-get-view-window))
         (select-window (mu4e-views-headers-redraw-get-view-window))
         (cl-case mu4e-views-next-previous-message-behaviour
           (stick-to-current-window (if mu4e-views--header-selected
-                                       (select-window (get-buffer-window (mu4e-get-headers-buffer)))
-                                     (select-window (mu4e-views-headers-redraw-get-view-window))))
-          (always-switch-to-view (select-window (mu4e-views-headers-redraw-get-view-window)))
-          (always-switch-to-headers (mu4e~headers-select-window)))))))
+                                       (select-window
+                                        (get-buffer-window (mu4e-get-headers-buffer)))
+                                     (select-window
+                                      (mu4e-views-headers-redraw-get-view-window))))
+          (always-switch-to-view (select-window
+                                  (mu4e-views-headers-redraw-get-view-window)))
+          (always-switch-to-headers (mu4e~headers-select-window))))))
 
 ;; ********************************************************************************
 ;; helpers for mu4e-headers view.
@@ -491,13 +618,14 @@ https://github.com/abo-abo/swiper")))
 (defun mu4e-views-mu4e-headers-windows-only ()
   "Show only the headers window of mu4e."
   (interactive)
-  ;; delete other windows because otherwise mu4e will mess up and select the header window for replacement
+  ;; delete other windows because otherwise mu4e will mess up and select the
+  ;; header window for replacement.
   (switch-to-buffer (mu4e-get-headers-buffer))
   (delete-other-windows))
 
 ;;;###autoload
 (defun mu4e-views-cursor-msg-view-window-down ()
-  "Scroll message view down using xwidget method if we view message using xwidget-webkit."
+  "Scroll message view down if we are viewing the message using xwidget-webkit."
   (interactive)
   (let* ((wind (other-window-for-scrolling))
 		 (mode (with-selected-window wind major-mode)))
@@ -510,7 +638,7 @@ https://github.com/abo-abo/swiper")))
 
 ;;;###autoload
 (defun mu4e-views-cursor-msg-view-window-up ()
-  "Scroll message view up using xwidget method if we view message using xwidget-webkit."
+  "Scroll message view up if we are viewing the message using xwidget-webkit."
   (interactive)
   (let* ((wind (other-window-for-scrolling))
 		 (mode (with-selected-window wind major-mode)))
@@ -523,21 +651,30 @@ https://github.com/abo-abo/swiper")))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-headers-next (&optional n)
-  "Move to next message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps instead."
+  "Move to next message in headers view.
+
+If a xwidget message view is open then use that to show the
+message.  With prefix argument move N steps instead."
   (interactive "P")
   (let ((step (or n 1)))
 	(mu4e-views-mu4e-headers-move step)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-headers-prev (&optional n)
-  "Move to `n'th previous message in headers view, if a xwidget message view is open then use that to show the message.  With prefix argument move `N' steps backwards."
+  "Move to previous message in headers view.
+
+If a xwidget message view is open then use that to show the
+message.  With prefix argument move N steps backwards instead."
   (interactive "P")
   (let ((step (* -1 (or n 1))))
 	(mu4e-views-mu4e-headers-move step)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-headers-move (n)
-  "Move by 'N` steps in the headers view.  Negative numbers move backwards.  If message view is open show message in the view."
+  "Move by N steps in the headers view.
+
+Negative numbers move backwards.  If the message view is open
+show message in the view."
   (interactive)
   (with-current-buffer (mu4e-get-headers-buffer)
     (setq mu4e-views--called-from-view t)
@@ -546,20 +683,23 @@ https://github.com/abo-abo/swiper")))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-after-headers-mode (n)
-  "Called when `mu4e~headers-move' is called to record from where it was called.  Ignore `N'."
+  "Called when `mu4e~headers-move' is called to record from where it was called.
+Ignore N."
   (ignore n)
   (if mu4e-views--called-from-view
       (setq mu4e-views--called-from-view nil)
-    (progn
-      (setq mu4e-views--header-selected t))))
+    (setq mu4e-views--header-selected t)))
 
 ;; ********************************************************************************
-;; helper function for accessing parts of an email. Should be bound by custom mu4e-view modes.
-;; These functions wrapp `mu4e' functions and pass on our saved message
+;; helper function for accessing parts of an email. Should be bound by custom
+;; mu4e-view modes.  These functions wrapp `mu4e' functions and pass on our
+;; saved message
 
 ;;;###autoload
 (defun mu4e-views-mu4e-extract-urls-from-msg (msg)
-  "Prepare mu4e datastructure for `MSG' so that command view message commands like browsing urls work in our xwidget message view."
+  "Prepare mu4e message data structure for MSG.
+This data structure is used to support commands like browsing
+urls in `mu4e-views' xwidget message view."
   (interactive)
   (unless (plist-member msg :body-urls)
     (let ((num 0)
@@ -579,53 +719,74 @@ https://github.com/abo-abo/swiper")))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-select-url-from-message ()
-  "Select a url included in a mu4e message."
+  "Select a url from a mu4e message."
   (interactive)
   (mu4e-views-mu4e-extract-urls-from-msg mu4e-views--current-mu4e-message)
   (mu4e-views-completing-read "Select url: " ;; prompt
-			;;(ht-map (lambda (k v) v) mu4e~view-link-map) ;; collection to complete over
-			(lax-plist-get mu4e-views--current-mu4e-message :body-urls)
-			:action (lambda (x)
-					  (browse-url x))
-			:sort t
-			:require-match t
-			:caller 'mu4e-views-mu4e-select-url-from-message))
+			                  (lax-plist-get
+                               mu4e-views--current-mu4e-message
+                               :body-urls)
+			                  :action (lambda (x)
+					                    (browse-url x))
+			                  :sort t
+			                  :require-match t
+			                  :caller 'mu4e-views-mu4e-select-url-from-message))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-open-attachment ()
-  "Select an attached from an mu4e message and open it."
+  "Select an attached from a mu4e message and open it."
   (interactive)
-  (let* ((attachments (mapcar (lambda (k) (list k (mu4e~view-get-attach mu4e-views--current-mu4e-message k))) (ht-keys mu4e~view-attach-map)))
-		 (names (mapcar (lambda (x) (mu4e-message-part-field (cadr x) :name)) attachments))
-		 (name-to-index (mapcar (lambda (x) (cons (plist-get (cadr x) :name) (car x))) attachments)))
+  (let* ((attachments (mapcar (lambda (k)
+                                (list k
+                                      (mu4e~view-get-attach
+                                       mu4e-views--current-mu4e-message
+                                       k)))
+                              (ht-keys mu4e~view-attach-map)))
+		 (names (mapcar
+                 (lambda (x) (mu4e-message-part-field (cadr x) :name))
+                 attachments))
+		 (name-to-index (mapcar
+                         (lambda (x) (cons (plist-get (cadr x) :name) (car x)))
+                         attachments)))
 	(mu4e-views-completing-read "Select url: " ;; prompt
-			  names ;; collection to complete over
-			  :action (lambda (x)
-						(let ((index (cdr (assoc x name-to-index))))
-						  (mu4e-view-open-attachment mu4e-views--current-mu4e-message index)))
-			  :sort t
-			  :require-match t
-			  :caller 'mu4e-views-mu4e-open-attachment)))
+			                    names ;; collection to complete over
+			                    :action (lambda (x)
+						                  (let ((index (cdr (assoc x name-to-index))))
+						                    (mu4e-view-open-attachment
+                                             mu4e-views--current-mu4e-message
+                                             index)))
+			                    :sort t
+			                    :require-match t
+			                    :caller 'mu4e-views-mu4e-open-attachment)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-save-attachment ()
-  "Select an attached from an mu4e message and save it."
+  "Select an attached from a mu4e message and save it."
   (interactive)
-  (let* ((attachments (mapcar (lambda (k) (list k (mu4e~view-get-attach mu4e-views--current-mu4e-message k))) (ht-keys mu4e~view-attach-map)))
-		 (names (mapcar (lambda (x) (mu4e-message-part-field (cadr x) :name)) attachments))
-		 (name-to-index (mapcar (lambda (x) (cons (plist-get (cadr x) :name) (car x))) attachments)))
+  (let* ((attachments (mapcar (lambda (k)
+                                (list k
+                                      (mu4e~view-get-attach
+                                       mu4e-views--current-mu4e-message k)))
+                              (ht-keys mu4e~view-attach-map)))
+		 (names (mapcar
+                 (lambda (x) (mu4e-message-part-field (cadr x) :name))
+                 attachments))
+		 (name-to-index (mapcar
+                         (lambda (x) (cons (plist-get (cadr x) :name) (car x)))
+                         attachments)))
 	(mu4e-views-completing-read "Select attachment(s): " ;; prompt
-			  names ;; collection to complete over
-			  :action (lambda (x)
-						(let ((index (cdr (assoc x name-to-index))))
-						  (mu4e-view-save-attachment-single mu4e-views--current-mu4e-message index)))
-			  :sort t
-			  :require-match t
-			  :caller 'mu4e-views-mu4e-save-attachment)))
+			                    names ;; collection to complete over
+			                    :action (lambda (x)
+						                  (let ((index (cdr (assoc x name-to-index))))
+						                    (mu4e-view-save-attachment-single
+                                             mu4e-views--current-mu4e-message index)))
+			                    :sort t
+			                    :require-match t
+			                    :caller 'mu4e-views-mu4e-save-attachment)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-save-all-attachments ()
-  "Save all attachements to a single directory choosen by the user."
+  "Save all attachments to a single directory chosen by the user."
   (interactive)
   (let* ((msg mu4e-views--current-mu4e-message)
 		 (attachnums (sort (ht-keys mu4e~view-attach-map) '<))
@@ -648,53 +809,72 @@ https://github.com/abo-abo/swiper")))
 		 index mu4e-decryption-policy fpath)))))
 
 (defun mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by (msg)
-  "Call the mu4e function to setup the attachments hash-map for `MSG' if this has not been done already."
+  "Call the `mu4e' function to setup the attachments hash-map for MSG.
+
+The function we are using is
+`mu4e~view-construct-attachments-header'. Only do this if we have
+not already done this for this message."
   (unless (plist-member msg :attachment-setup)
 	(mu4e~view-construct-attachments-header msg)
 	(lax-plist-put msg :attachment-setup t)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-open-attachment ()
-  "Wraps the `mu4e-view-open-attachment' function and passes on the message stored in `mu4e-views--current-mu4e-message'."
+  "Wraps the `mu4e-view-open-attachment' function.
+
+Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
-  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by mu4e-views--current-mu4e-message)
+  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by
+   mu4e-views--current-mu4e-message)
   (mu4e-views-mu4e-open-attachment))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-go-to-url ()
-  "Wraps the `mu4e-view-go-to-url' function and passes on the message stored in `mu4e-views--current-mu4e-message'."
+  "Wraps the `mu4e-view-go-to-url' function.
+
+Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-views-mu4e-select-url-from-message))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-save-url ()
-  "Wraps the `mu4e-view-save-url' function and passes on the message stored in `mu4e-views--current-mu4e-message'."
+  "Wraps the `mu4e-view-save-url' function.
+
+ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-view-save-url mu4e-views--current-mu4e-message))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-save-attachment ()
-  "Wraps the `mu4e-save-attachment' function and passes on the message stored in `mu4e-views--current-mu4e-message'."
+  "Wraps the `mu4e-save-attachment' function.
+
+ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
-  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by mu4e-views--current-mu4e-message)
+  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by
+   mu4e-views--current-mu4e-message)
   (mu4e-views-mu4e-save-attachment))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-save-all-attachments ()
   "Wraps function to save all attachments using `mu4e-views--current-mu4e-message'."
   (interactive)
-  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by mu4e-views--current-mu4e-message)
+  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by
+   mu4e-views--current-mu4e-message)
   (mu4e-views-mu4e-save-all-attachments))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-action ()
-  "Wraps the `mu4e-view-action' function and passes on the message stored in `mu4e-views--current-mu4e-message'."
+  "Wraps the `mu4e-view-action' function.
+
+Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-view-action mu4e-views--current-mu4e-message))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-fetch-url ()
-  "Wraps the `mu4e-view-fetch-url' function and passes on the message stored in `mu4e-views--current-mu4e-message'."
+  "Wraps the `mu4e-view-fetch-url' function.
+
+Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-view-fetch-url mu4e-views--current-mu4e-message))
 
@@ -714,7 +894,7 @@ https://github.com/abo-abo/swiper")))
     (define-key km (kbd "a") #'mu4e-views-mu4e-view-action)
     (define-key km (kbd "f") #'mu4e-views-mu4e-view-fetch-url)
     km)
-  "Mu4e-views-view-actions-mode keymap.")
+  "The keymap for `Mu4e-views-view-actions-mode'.")
 
 ;; create a minor mode mainly for custom keys
 (define-minor-mode mu4e-views-view-actions-mode
@@ -738,16 +918,17 @@ https://github.com/abo-abo/swiper")))
   "Select the method for viewing emails in `mu4e'."
   (interactive)
   (mu4e-views-completing-read "Select method for viewing mail: " ;; prompt
-			(mapcar (lambda (x) (car x)) mu4e-views-view-commands) ;; collection to complete over
-			:action (lambda (x)
-					  (mu4e-views-mu4e-use-view-msg-method x))
-			:sort t
-			:require-match t
-            :history 'mu4e-views--mu4e-select-view-msg-method-history
-			:caller 'mu4e-views-mu4e-select-view-msg-method))
+                              ;; collection to complete over
+			                  (mapcar (lambda (x) (car x)) mu4e-views-view-commands)
+			                  :action (lambda (x)
+					                    (mu4e-views-mu4e-use-view-msg-method x))
+			                  :sort t
+			                  :require-match t
+                              :history 'mu4e-views--mu4e-select-view-msg-method-history
+			                  :caller 'mu4e-views-mu4e-select-view-msg-method))
 
 ;;;###autoload
-(defun mu4e-views-deactivate ()
+(defun mu4e-views-unload-function ()
   "Uninstalls the advices on mu4e functions created by mu4e-views."
   (interactive)
   (mu4e-views-advice-unadvice 'mu4e~view-internal)
