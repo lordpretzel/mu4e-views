@@ -1,8 +1,4 @@
-[![License: GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.txt)
-<!-- [![Build Status](https://secure.travis-ci.org/lordpretzel/mu4e-views.png)](http://travis-ci.org/lordpretzel/mu4e-views) -->
-<!-- [![GitHub release](https://img.shields.io/github/release/lordpretzel/mu4e-views.svg?maxAge=86400)](https://github.com/lordpretzel/mu4e-views/releases) -->
-<!-- [![MELPA Stable](http://stable.melpa.org/packages/mu4e-views-badge.svg)](http://stable.melpa.org/#/mu4e-views) -->
-<!-- [![MELPA](http://melpa.org/packages/mu4e-views-badge.svg)](http://melpa.org/#/mu4e-views) -->
+[![License: GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.txt) <!-- [![Build Status](https://secure.travis-ci.org/lordpretzel/mu4e-views.png)](http://travis-ci.org/lordpretzel/mu4e-views) --> <!-- [![GitHub release](https://img.shields.io/github/release/lordpretzel/mu4e-views.svg?maxAge=86400)](https://github.com/lordpretzel/mu4e-views/releases) --> [![MELPA Stable](http://stable.melpa.org/packages/mu4e-views-badge.svg)](http://stable.melpa.org/#/mu4e-views) [![MELPA](http://melpa.org/packages/mu4e-views-badge.svg)](http://melpa.org/#/mu4e-views)
 
 
 
@@ -16,22 +12,22 @@ Also provides methods to access content extracted from an email, e.g., urls or a
 
 ## Installation
 
-<!-- ### MELPA -->
+### MELPA
 
-<!-- Symbol’s value as variable is void: $1 is available from MELPA (both -->
-<!-- [stable](http://stable.melpa.org/#/mu4e-views) and -->
-<!-- [unstable](http://melpa.org/#/mu4e-views)).  Assuming your -->
-<!-- ((melpa . https://melpa.org/packages/) (gnu . http://elpa.gnu.org/packages/) (org . http://orgmode.org/elpa/)) lists MELPA, just type -->
+Symbol’s value as variable is void: $1 is available from MELPA (both
+[stable](http://stable.melpa.org/#/mu4e-views) and
+[unstable](http://melpa.org/#/mu4e-views)).  Assuming your
+`package-archives` lists MELPA, just type
 
-<!-- ~~~sh -->
-<!-- M-x package-install RET mu4e-views RET -->
-<!-- ~~~ -->
+~~~sh
+M-x package-install RET mu4e-views RET
+~~~
 
-<!-- to install it. -->
+to install it.
 
 ### Prerequisites
 
-Until this on `MELPA`, you have to install dependency [xwidgets-reuse](https://github.com/lordpretzel/xwidgets-reuse) first. Also this uses `xwidget`, so you can only use this package if your emacs has been compiled with support for `xwidget`. If you are unsure whether this is the case try running: `(xwidget-webkit-browse-url "https://www.gnu.org/")`.
+If you are not installing from [melpa](http://melpa.org/#/mu4e-views) you have to install the dependency [xwidgets-reuse](https://github.com/lordpretzel/xwidgets-reuse) first. Also this uses `xwidget`, so you can only use this package if your emacs has been compiled with support for `xwidget`. If you are unsure whether this is the case try running: `(xwidget-webkit-browse-url "https://www.gnu.org/")`.
 
 ### Quelpa
 
