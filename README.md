@@ -14,7 +14,7 @@ Also provides methods to access content extracted from an email, e.g., urls or a
 
 ### MELPA
 
-Symbol’s value as variable is void: $1 is available from MELPA (both
+Symbol’s value as variable is void: `mu4e-views` is available from MELPA (both
 [stable](http://stable.melpa.org/#/mu4e-views) and
 [unstable](http://melpa.org/#/mu4e-views)).  Assuming your
 `package-archives` lists MELPA, just type
@@ -38,8 +38,7 @@ Using [use-package](https://github.com/jwiegley/use-package) with [quelpa](https
   :quelpa ((mu4e-views
     :fetcher github
     :repo "lordpretzel/mu4e-views")
-  :upgrade t)
-)
+  :upgrade t))
 ~~~
 
 ### straight
@@ -88,7 +87,7 @@ After the package is loaded, you can call `mu4e-views-mu4e-select-view-msg-metho
 You may want to bind this to a key in `mu4e-headers-mode-map`.
 
 ~~~elisp
-(define-key mu4e-headers-mode-map (kbd "v") 'mu4e-views-mu4e-select-view-msg-method)
+(define-key mu4e-headers-mode-map (kbd "v") #'mu4e-views-mu4e-select-view-msg-method)
 ~~~
 
 Here is an example setup:
@@ -110,8 +109,7 @@ Here is an example setup:
   (setq mu4e-views-completion-method 'ivy) ;; use ivy for completion
   (setq mu4e-views-default-view-method "html") ;; make xwidgets default
   (mu4e-views-mu4e-use-view-msg-method "html") ;; select the default
-  (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window) ;; when pressing n and p stay in the current window
-  )
+  (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window)) ;; when pressing n and p stay in the current window
 ~~~
 
 ### Settings
@@ -150,7 +148,7 @@ To use your keyboard to click on links in an email shown in `xwidgets`, you can 
 To define a new view, you need to create a function `my-view-func(html msg win)` that uses window `win` to show the message. `html` is the name of a file storing `html` text of the message. If `mu4e-views-inject-email-information-into-html` is `t` then `mu4e-views` injects a header into the html code to show some basic information about the email (e.g., sender, attachments, ...). `msg` is a `mu4e` internal message object. You can use it to extract additional information about the email to be shown. Please refer to the  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) and `mu4e-views` source code to see how this works. To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. Methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. Any view methods needs to set `:viewfunc` to a function `my-view-func(html msg win)`. For example,
 
 ~~~elisp
-(add-to-list 'mu4e-views-view-commands (:viewfunc 'my-view-func))
+(add-to-list 'mu4e-views-view-commands (:viewfunc #'my-view-func))
 ~~~
 
 `mu4e-views` provides several helper functions for doing typical things with emails such as storing attachments as described above. These functions can be used in custom views too.
