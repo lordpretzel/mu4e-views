@@ -83,6 +83,7 @@ After the package is loaded, you can call `mu4e-views-mu4e-select-view-msg-metho
 - `html` - uses `xwidgets` to show the email
 - `text` - the default `mu4e` method for viewing emails that translates the email into text
 - `browser` - open the email using `browse-url`, e.g., in your system browser
+- `gnu` - open the meail using `mu4e`'s gnus method
 
 You may want to bind this to a key in `mu4e-headers-mode-map`.
 
@@ -96,33 +97,34 @@ Here is an example setup:
 (use-package mu4e-views
   :after mu4e
   :defer nil
-  :quelpa ((mu4e-views
-            :fetcher github
-            :repo "lordpretzel/mu4e-views")
-           :upgrade t)
   :bind (:map mu4e-headers-mode-map
 	    ("v" . mu4e-views-mu4e-select-view-msg-method) ;; select viewing method
 	    ("M-n" . mu4e-views-cursor-msg-view-window-down) ;; from headers window scroll the email view
 	    ("M-p" . mu4e-views-cursor-msg-view-window-up) ;; from headers window scroll the email view
+        ("f" . mu4e-views-toggle-auto-view-selected-message) ;; toggle opening messages automatically when moving in the headers view
 	    )
   :config
   (setq mu4e-views-completion-method 'ivy) ;; use ivy for completion
   (setq mu4e-views-default-view-method "html") ;; make xwidgets default
   (mu4e-views-mu4e-use-view-msg-method "html") ;; select the default
-  (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window)) ;; when pressing n and p stay in the current window
+  (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window) ;; when pressing n and p stay in the current window
+  (setq mu4e-views-auto-view-selected-message t)) ;; automatically open messages when moving in the headers view
 ~~~
 
 ### Settings
 
 - `mu4e-views-completion-method` - framework used for completion.
+- `mu4e-views-inject-email-information-into-html` - if `t`, then create a header shown on top of the html message with useful information from the email. The header uses CSS styles defined in `mu4e-views-mu4e-html-email-header-style`.
 - `mu4e-views-mu4e-html-email-header-style` - CSS style for showing the header of an email (`mu4e-views` injects this header into the html text of the email). Customize to change appearance of this header.
+- `mu4e-views-mu4e-email-headers-as-html-function` - if you want to change what html is injected for an email more radically, then you can supply your own function for doing this. This function should take a single parameter that is a `mu4e` message `plist`. Have a look at the `mu4e` source code to learn more about what information is stored in such a plist.
 - `mu4e-views-next-previous-message-behaviour` - per default `mu4e` switches from the `headers` window to the `view` window once an email is opened, e.g., by pressing `n`. This option customizes this behavior:
   - `always-switch-to-headers` - always switch back the `headers` window
   - `always-switch-to-view` - always switch back the `view` window (default behavior of `mu4e`)
   - `stick-to-current-window` - stay in the current window (`headers` or `views`)
-- `mu4e-views-inject-email-information-into-html` - if `t`, then create a header shown on top of the html message with useful information from the email
 - `mu4e-views-view-commands` - the view methods supported by `mu4e-views`. Customize to add new methods.
 - `mu4e-views-default-view-method` - the default method for viewing emails.
+- `mu4e-views-auto-view-selected-message` - if `t` (default), then automatically show the email selected in the headers view if the view window is shown. That means when moving between emails with `n` and `p` the view window is updated to show the selected email.
+
 
 ### xwidgets view
 
@@ -138,6 +140,7 @@ Several keys are bound in this view to store attachments, open attachments, go t
 - `E`: `mu4e-views-mu4e-view-save-all-attachment` - save all attachments
 - `a`: `mu4e-views-mu4e-view-action` - call a `mu4e` view action
 - `f`: `mu4e-views-mu4e-view-fetch-url` - fetch URL from email
+- `y`: `mu4e-views-select-other-view` - switch to the other view (the headers view)
 
 #### Synergy with `xwwp`
 
@@ -145,10 +148,28 @@ To use your keyboard to click on links in an email shown in `xwidgets`, you can 
 
 ### Define custom views
 
-To define a new view, you need to create a function `my-view-func(html msg win)` that uses window `win` to show the message. `html` is the name of a file storing `html` text of the message. If `mu4e-views-inject-email-information-into-html` is `t` then `mu4e-views` injects a header into the html code to show some basic information about the email (e.g., sender, attachments, ...). `msg` is a `mu4e` internal message object. You can use it to extract additional information about the email to be shown. Please refer to the  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) and `mu4e-views` source code to see how this works. To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. Methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. Any view methods needs to set `:viewfunc` to a function `my-view-func(html msg win)`. For example,
+To define a new view, you need at the minum create a function `my-view-func(html msg win)` that uses window `win` to show the message. `html` is the name of a file storing `html` text of the message. If `mu4e-views-inject-email-information-into-html` is `t` then `mu4e-views` injects a header into the html code to show some basic information about the email (e.g., sender, attachments, ...). `msg` is a `mu4e` internal message object. You can use it to extract additional information about the email to be shown. Please refer to the  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) and `mu4e-views` source code to see how this works.
+
+To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. Methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. For example, the browser methods does this. Furthermore, if your method does not need `m4ue-views` to generate the message as an html file then use `:view-function-only-msg t`. In this case your function should have the signature `(msg win)`.
+Any view methods needs to set `:viewfunc` to a function `my-view-func(html msg win)` and needs to provide a function `:is-view-window-p` with signature `(window)` that returns `t` if `window` is the window your message uses for showing the email. Optionally, you can also set `:create-view-window` if the window you use for showing messages needs some initial setup before the asynchronous `mu4e` method for viewing an email is called (whose callback will indirectly call your `:viewfunc`). For example, the method below shows the raw html code of messages.
 
 ~~~elisp
-(add-to-list 'mu4e-views-view-commands (:viewfunc #'my-view-func))
+(defun mu4e-views-view-raw-html (html msg win)
+  (let ((buf (find-file-noselect html)))
+    (with-current-buffer buf
+      (read-only-mode)
+      (select-window win)
+      (switch-to-buffer buf t t))))
+
+(defun mu4e-views-view-raw-html-is-view-p (win)
+  (let ((winbuf (window-buffer win)))
+    (with-current-buffer winbuf
+      (eq major-mode 'html-mode))))
+
+(add-to-list 'mu4e-views-view-commands
+             '("rawhtml" .
+               (:viewfunc mu4e-views-view-raw-html
+                          :is-view-window-p mu4e-views-view-raw-html-is-view-p)))
 ~~~
 
 `mu4e-views` provides several helper functions for doing typical things with emails such as storing attachments as described above. These functions can be used in custom views too.
