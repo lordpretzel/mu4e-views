@@ -255,21 +255,12 @@ https://github.com/abo-abo/swiper")))
 	  (setq mu4e-views--current-viewing-method cmd)
 	  (if (eq (plist-get cmd :viewfunc) #'mu4e-headers-view-message)
 		  ;; use standard mu4e method (remove all advice)
-          (progn
-		    (mu4e-views-advice-unadvice #'mu4e~view-internal)
-            (mu4e-views-advice-unadvice #'mu4e-headers-view-message)
-            (mu4e-views-advice-unadvice #'mu4e~headers-move))
+          (mu4e-views-unload-function)
 		;; replace advice
-		(advice-add 'mu4e~view-internal
-                    :override #'mu4e-views-view-msg-internal)
-        (advice-add 'mu4e-headers-view-message
-                    :override #'mu4e-views-mu4e-headers-view-message)
-        (advice-add 'mu4e~headers-move
-                    :after #'mu4e-views-mu4e-after-headers-mode)))))
+        (mu4e-views-advice-mu4e)))))
 
 ;; ********************************************************************************
 ;; functions for viewing a mu4e message in xwidgets
-
 (defun mu4e-views-mu4e-view-xwidget (html msg win)
   "View message MSG with HTML content in xwidget using window WIN."
   (interactive)
@@ -285,7 +276,6 @@ https://github.com/abo-abo/swiper")))
 
 ;; ********************************************************************************
 ;; functions viewing email in a webbrowser (available as action and as a view method)
-
 (defun mu4e-views-mu4e-view-in-browser-action (msg)
   "Open email MSG in browser using `browse-url'."
   (interactive)
@@ -303,7 +293,6 @@ https://github.com/abo-abo/swiper")))
 
 ;; ********************************************************************************
 ;; functions for writing a message to HTML and making it accessible to custom views
-
 (defun mu4e-views-mu4e-email-headers-as-html (msg)
   "Create formatted html for headers like subject and from/to of email MSG."
   (interactive)
@@ -494,8 +483,18 @@ Return the file's name.  Text messages are converted into html."
       ;; return nil if window list has not exactly 2 windows
       nil)))
 
-(defun mu4e-views-get-view-win ()
-  "Return window to use for `mu4e-views' viewing of emails."
+(defun mu4e-views-mu4e-view-window-p (&optional window)
+  "Return t if WINDOW is the mu4e-views message window.  If WINDOW is omitted, then check for the current window."
+  (if (mu4e-views-mu4e-header-and-view-windows-p)
+      (let ((thewindow (or window (selected-window))))
+        (message "selected win: %s" thewindow)
+        (eq thewindow (mu4e-views-get-view-win)))
+    nil))
+
+(defun mu4e-views-get-view-win (&optional noerror)
+  "Return window to use for `mu4e-views' viewing of emails.
+
+If optional argument NOERROR is t then do not throw an error if the window does not exist."
   (let (win)
     (cl-loop for w in (window-list) do
              (let* ((buf (window-buffer w))
@@ -505,7 +504,7 @@ Return the file's name.  Text messages are converted into html."
                    (setq win w)))))
     (if win
         win
-      (error "View window not found in %s" (window-list)))))
+      (unless noerror (error "View window not found in %s" (window-list))))))
 
 (defun mu4e-views-headers-redraw-get-view-window ()
   "Unless we already have the correct window layout, rebuild it.
@@ -544,6 +543,26 @@ message view (if the current viewing method needs a window)."
                   (t ;; no splitting; just use the currently selected one
                    (setq mu4e-views--view-window (selected-window))
                    (selected-window)))))))
+
+(defun mu4e-views-headers-redraw-get-view-buffer ()
+  "Return the view buffer, redrawing the view window if we do not have the correct layout."
+  (window-buffer (mu4e-views-headers-redraw-get-view-window)))
+
+(defun mu4e-views-select-other-view ()
+  "When the headers view is selected, then select the message view (if that has a live window), and vice versa."
+  (interactive)
+  (message "SWITCHING")
+  (let* ((other-buf
+          (cond
+           ((eq major-mode 'mu4e-headers-mode)
+            (window-buffer (mu4e-views-get-view-win t)))
+           ((mu4e-views-mu4e-view-window-p)
+            (mu4e-get-headers-buffer))))
+         (other-win (and other-buf (get-buffer-window other-buf))))
+    (message "other-win %s other buffer %s" other-win other-buf)
+    (if (window-live-p other-win)
+        (select-window other-win)
+      (mu4e-message "NO window to switch to"))))
 
 (defun mu4e-views-mu4e-headers-view-message ()
   "View message at point.
@@ -893,6 +912,7 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
     (define-key km (kbd "E") #'mu4e-views-mu4e-view-save-all-attachments)
     (define-key km (kbd "a") #'mu4e-views-mu4e-view-action)
     (define-key km (kbd "f") #'mu4e-views-mu4e-view-fetch-url)
+    (define-key km (kbd "y") #'mu4e-views-select-other-view)
     km)
   "The keymap for `Mu4e-views-view-actions-mode'.")
 
@@ -933,7 +953,19 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-views-advice-unadvice 'mu4e~view-internal)
   (mu4e-views-advice-unadvice 'mu4e-headers-view-message)
-  (mu4e-views-advice-unadvice 'mu4e~headers-move))
+  (mu4e-views-advice-unadvice 'mu4e~headers-move)
+  (mu4e-views-advice-unadvice 'mu4e-select-other-view))
+
+(defun mu4e-views-advice-mu4e ()
+  "Install the advices on mu4e functions used by mu4e-views to overwrite its functionality."
+  (advice-add 'mu4e~view-internal
+              :override #'mu4e-views-view-msg-internal)
+  (advice-add 'mu4e-headers-view-message
+              :override #'mu4e-views-mu4e-headers-view-message)
+  (advice-add 'mu4e~headers-move
+              :after #'mu4e-views-mu4e-after-headers-mode)
+  (advice-add 'mu4e-select-other-view
+              :override #'mu4e-views-select-other-view))
 
 (provide 'mu4e-views)
 ;;; mu4e-views.el ends here
