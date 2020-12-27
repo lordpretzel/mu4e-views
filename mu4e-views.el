@@ -551,7 +551,6 @@ message view (if the current viewing method needs a window)."
 (defun mu4e-views-select-other-view ()
   "When the headers view is selected, then select the message view (if that has a live window), and vice versa."
   (interactive)
-  (message "SWITCHING")
   (let* ((other-buf
           (cond
            ((eq major-mode 'mu4e-headers-mode)
@@ -559,10 +558,9 @@ message view (if the current viewing method needs a window)."
            ((mu4e-views-mu4e-view-window-p)
             (mu4e-get-headers-buffer))))
          (other-win (and other-buf (get-buffer-window other-buf))))
-    (message "other-win %s other buffer %s" other-win other-buf)
     (if (window-live-p other-win)
         (select-window other-win)
-      (mu4e-message "NO window to switch to"))))
+      (mu4e-message "No window to switch to"))))
 
 (defun mu4e-views-mu4e-headers-view-message ()
   "View message at point.
