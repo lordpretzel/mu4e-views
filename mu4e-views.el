@@ -119,6 +119,12 @@ supported options are `ivy', `helm', and `ido'."
                 (const :tag "Use ido." ido)
                 (function :tag "Custom function")))
 
+(defcustom mu4e-views-mu4e-email-headers-as-html-function
+  #'mu4e-views-mu4e-email-headers-as-html
+  "This function is used to create html code from an mu4e message.  The function should take a single argument MSG.  If you want to provide your custom implementation, then have a look at the implementation of `mu4e-views-mu4e-email-headers-as-html'."
+  :group 'mu4e-views
+  :type 'function)
+
 (defvar mu4e-views--mu4e-select-view-msg-method-history
   nil
   "Store completion history for `mu4e-views-mu4e-select-view-msg-method'.")
@@ -420,7 +426,7 @@ Return the file's name.  Text messages are converted into html."
 		(setq after-save-hook nil)
 		(insert (concat "<head><meta charset=\"UTF-8\">" mu4e-views-mu4e-html-email-header-style  "</head>\n"))
         (when mu4e-views-inject-email-information-into-html
-          (insert (mu4e-views-mu4e-email-headers-as-html msg)))
+          (insert (funcall mu4e-views-mu4e-email-headers-as-html-function msg)))
 		(insert (or html (concat "<div style=\"white-space: pre-wrap;\">" txt "</div>")))
 		(write-file tmpfile)
 		;; rewrite attachment urls
