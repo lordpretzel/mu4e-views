@@ -584,21 +584,11 @@ window."
                     (mu4e-warn "No message at point")))
          (decrypt (mu4e~decrypt-p msg))
          (verify  (not mu4e-view-use-gnus)))
-    ;; (viewwin (if (plist-get mu4e-views--current-viewing-method :no-view-window)
-    ;;              nil
-    ;;            (mu4e-views-headers-redraw-get-view-window))))
-    ;; (when viewwin
-    ;;   (select-window viewwin)
-    ;;   ;; show some 'loading...' buffer
-    ;;   (unless (buffer-live-p mu4e~headers-loading-buf)
-    ;;     (setq mu4e~headers-loading-buf (get-buffer-create " *mu4e-loading*"))
-    ;;     (with-current-buffer mu4e~headers-loading-buf
-    ;;       (mu4e-loading-mode)))
-    ;;   (switch-to-buffer mu4e~headers-loading-buf))
     (let ((mu4e-ver (version-to-list mu4e-mu-version)))
-      (if (and (eq (car mu4e-ver) 1) (eq (cadr mu4e-ver) 2))
-          (mu4e~proc-view docid decrypt verify)
-        (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))))
+      (cond
+       ((version-list-<= mu4e-ver '(1 3 9)) (mu4e~proc-view docid mu4e-view-show-images decrypt))
+       ((version-list-< mu4e-ver '(0 9 9)) (mu4e~proc-view docid mu4e-view-show-images))
+       (t (mu4e~proc-view docid mu4e-view-show-images decrypt verify))))))
 
 (defun mu4e-views-view-msg-internal (msg)
   "Replacement for `mu4e-view-msg-internal'.
