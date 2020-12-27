@@ -74,13 +74,27 @@ Currently supported are:
 - \"browser\" - view email as html in browser using `browse-url'
 - \"gnus\" - use mu4e's build-in gnus article view
 
-A viewing command ic a cons of a string (the methods name as shown to the user), and a plist the defines the methods behavior. The following keys are supported:
+A viewing command ic a cons of a string (the methods name as
+shown to the user), and a plist the defines the methods
+behavior. The following keys are supported:
 
-`:viewfunc' - this is function that does the actual work of displaying a message. The signature is `(html msg win)' (or `(msg)' if `:view-function-only-msg' is t) where `html' is the name of a file storing the message as html, `msg' is a mu4e message plist (see relevant `mu4e' code, and `win' is a window in which the message should be displayed in.
-`:view-function-only-msg' - if t, then the view function does only take a single argument `msg' which is a mu4e message plist. In this case `mu4e-views' will not write the message to an html file.
-`:create-view-window-function' - if called, this function should create the mu4e message viewing window.
-`:is-view-window-p' - if it is currently shown return the viewing window, otherwise return nil.
-`:no-view-window' - if t, then the viewing method does not use a separate viewing window, e.g., it may be using an external program like a browser to show the method. In this case also `:is-view-window-p' does not have to be provided"
+`:viewfunc' - this is function that does the actual work of
+displaying a message. The signature is `(html msg
+win)' (or `(msg)' if `:view-function-only-msg' is t) where `html'
+is the name of a file storing the message as html, `msg' is a
+mu4e message plist (see relevant `mu4e' code, and `win' is a
+window in which the message should be displayed in.
+`:view-function-only-msg' - if t, then the view function does
+only take a single argument `msg' which is a mu4e message
+plist. In this case `mu4e-views' will not write the message to an
+html file.  `:create-view-window-function' - if called, this
+function should create the mu4e message viewing window.
+`:is-view-window-p' - if it is currently shown return the viewing
+window, otherwise return nil.  `:no-view-window' - if t, then the
+viewing method does not use a separate viewing window, e.g., it
+may be using an external program like a browser to show the
+method. In this case also `:is-view-window-p' does not have to be
+provided"
   :group 'mu4e-views
   :type 'alist)
 
@@ -325,17 +339,19 @@ https://github.com/abo-abo/swiper")))
    'mu4e-views-view-actions-mode))
 
 (defun mu4e-views-xwidget-is-view-window-p (win)
-  "Return window to use for `mu4e-views' viewing of emails.
-
-If optional argument NOERROR is t then do not throw an error if the window does not exist."
+  "Return t if WIN is the xwidget view window."
   (let ((buf (window-buffer win)))
     (with-current-buffer buf
       (eq major-mode 'xwidget-webkit-mode))))
 
 ;; ********************************************************************************
 ;; VIEWING METHOD: html
+
+; keep byte compiler quiet. This is function is dynamically defined by mu4e based on the selected viewing method.
+(declare-function 'mu4e-view-mode "mu4e-view" nil)
+
 (defun mu4e-views-text-view-message (msg win)
-  "Copy of most of the cost of `mu4e~view-internal' to be used when using this viewing method from `mu4e-views'."
+  "Copy of most of the cost of `mu4e~view-internal' to be used when using this viewing method from `mu4e-views'.  Takes MSG plist and window WIN as input."
   (let* ((embedded ;; is it as an embedded msg (ie. message/rfc822 att)?
           (when (gethash (mu4e-message-field msg :path)
                          mu4e~path-parent-docid-map) t))
@@ -379,7 +395,7 @@ If optional argument NOERROR is t then do not throw an error if the window does 
 ;; VIEWING METHOD: browser
 ;; functions viewing email in a webbrowser (available as action and as a view method)
 (defun mu4e-views-gnus-view-message (msg win)
-  "View MSG using Gnus' article mode. Experimental."
+  "View message MSG on window WIN using Gnus article mode."
   (require 'gnus-art)
   (let ((marked-read (mu4e~view-mark-as-read-maybe msg))
         (path (mu4e-message-field msg :path))
@@ -622,7 +638,6 @@ Return the file's name.  Text messages are converted into html."
         (have-view nil)
         (other-buf nil)
         (is-view-p (plist-get mu4e-views--current-viewing-method :is-view-window-p))
-        (loading-buffer mu4e~headers-loading-buf)
         (header-buffer (mu4e-get-headers-buffer)))
     (message "TEST FUNCTION %s " is-view-p)
     (if (eq (length (window-list)) 2)
@@ -642,7 +657,7 @@ Return the file's name.  Text messages are converted into html."
       nil)))
 
 (defun mu4e-views-mu4e-view-window-p (&optional window)
-  "Return t if WINDOW is the mu4e-views message window.  If WINDOW is omitted, then check for the current window.  This function uses `:is-view-window-p' of the current viewing method."
+  "Return t if WINDOW is the mu4e-views message window.  If WINDOW is omitted, then check for the current window.  Use `:is-view-window-p' of the current viewing method."
   (let ((is-view-p (plist-get mu4e-views--current-viewing-method :is-view-window-p))
         (thewindow (or window (selected-window))))
     (message "selected win: %s" thewindow)
@@ -735,10 +750,6 @@ message view (if the current viewing method needs a window)."
         (select-window other-win)
       (mu4e-message "No window to switch to"))))
 
-(defun mu4e-views-headers-selected-message
-
-    )
-
 (defun mu4e-views-mu4e-headers-view-message ()
   "View message at point.
 
@@ -770,7 +781,6 @@ Takes `mu4e' message MSG as input."
   (let* ((viewfunc (plist-get mu4e-views--current-viewing-method :viewfunc))
          (only-msg (plist-get mu4e-views--current-viewing-method :view-function-only-msg))
          (no-window (plist-get mu4e-views--current-viewing-method :no-view-window))
-         (create-win-func (plist-get mu4e-views--current-viewing-method :create-view-window))
          (html (mu4e-message-field msg :body-html))
 	     (txt (mu4e-message-field msg :body-txt))
          ;; (currentwin (selected-window))
@@ -875,9 +885,9 @@ message.  With prefix argument move N steps backwards instead."
 
 ;;;###autoload
 (defun mu4e-views-mu4e-headers-move (lines)
-  "Move point LINES lines forward (if LINES is positive) or
-backward (if LINES is negative). If this succeeds, return the new
-docid. Otherwise, return nil."
+  "Move point LINES lines.
+Forward (if LINES is positive) or backward (if LINES is negative).
+If this succeeds, return the new docid.  Otherwise, return nil."
   (unless (eq major-mode 'mu4e-headers-mode)
     (mu4e-error "Must be in mu4e-headers-mode (%S)" major-mode))
   (let* ((_succeeded (zerop (forward-line lines)))
@@ -906,7 +916,8 @@ docid. Otherwise, return nil."
 (defun mu4e-views-mu4e-headers-move-wrapper (n)
   "Move by N steps in the headers view.
 
-Negative numbers move backwards. Record the window that we started from to be able to respect `mu4e-views-next-previous-message-behaviour'."
+Negative numbers move backwards.  Record the window that we started from to
+be able to respect `mu4e-views-next-previous-message-behaviour'."
   (interactive)
   (setq mu4e-views--header-selected (not (mu4e-views-mu4e-view-window-p (selected-window))))
   (message "header was selected? %s" mu4e-views--header-selected)
@@ -1035,7 +1046,7 @@ urls in `mu4e-views' xwidget message view."
   "Call the `mu4e' function to setup the attachments hash-map for MSG.
 
 The function we are using is
-`mu4e~view-construct-attachments-header'. Only do this if we have
+`mu4e~view-construct-attachments-header'.  Only do this if we have
 not already done this for this message."
   (unless (plist-member msg :attachment-setup)
 	(mu4e~view-construct-attachments-header msg)
