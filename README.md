@@ -14,7 +14,7 @@ Also provides methods to access content extracted from an email, e.g., urls or a
 
 ### MELPA
 
-Symbol’s value as variable is void: `mu4e-views` is available from MELPA (both
+`mu4e-views` is available from MELPA (both
 [stable](http://stable.melpa.org/#/mu4e-views) and
 [unstable](http://melpa.org/#/mu4e-views)).  Assuming your
 `package-archives` lists MELPA, just type
@@ -148,10 +148,10 @@ To use your keyboard to click on links in an email shown in `xwidgets`, you can 
 
 ### Define custom views
 
-To define a new view, you need at the minum create a function `my-view-func(html msg win)` that uses window `win` to show the message. `html` is the name of a file storing `html` text of the message. If `mu4e-views-inject-email-information-into-html` is `t` then `mu4e-views` injects a header into the html code to show some basic information about the email (e.g., sender, attachments, ...). `msg` is a `mu4e` internal message object. You can use it to extract additional information about the email to be shown. Please refer to the  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) and `mu4e-views` source code to see how this works.
+To define a new view, you need to write a function `my-view-func(html msg win)` that uses window `win` to show the message. `html` is the name of a file storing `html` text of the message.
+If `mu4e-views-inject-email-information-into-html` is `t` then `mu4e-views` injects a header into the html code to show some basic information about the email (e.g., sender, attachments, ...). `msg` is a `mu4e` internal message plist. You can use it to extract additional information about the email to be shown. Please refer to the  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) and `mu4e-views` source code to see how this works.
 
-To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. Methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. For example, the browser methods does this. Furthermore, if your method does not need `m4ue-views` to generate the message as an html file then use `:view-function-only-msg t`. In this case your function should have the signature `(msg win)`.
-Any view methods needs to set `:viewfunc` to a function `my-view-func(html msg win)` and needs to provide a function `:is-view-window-p` with signature `(window)` that returns `t` if `window` is the window your message uses for showing the email. Optionally, you can also set `:create-view-window` if the window you use for showing messages needs some initial setup before the asynchronous `mu4e` method for viewing an email is called (whose callback will indirectly call your `:viewfunc`). For example, the method below shows the raw html code of messages.
+To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. Methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. For example, the browser method does this. Furthermore, if your method does not need `m4ue-views` to generate the message as an html file then use `:view-function-only-msg t`. In this case your function should have the signature `(msg win)`. Any view methods needs to set `:viewfunc`. Views that use windows (`:no-view-window` is not set) need to provide a function `:is-view-window-p` with signature `(window)` that returns `t` if `window` is the window your method uses for showing the email. Optionally, you can also set `:create-view-window` if the window you use for showing messages needs some initial setup before the asynchronous `mu4e` method for viewing an email is called (whose callback will indirectly call your `:viewfunc`). For example, the method below shows the raw html code of messages.
 
 ~~~elisp
 (defun mu4e-views-view-raw-html (html msg win)
@@ -172,4 +172,4 @@ Any view methods needs to set `:viewfunc` to a function `my-view-func(html msg w
                           :is-view-window-p mu4e-views-view-raw-html-is-view-p)))
 ~~~
 
-`mu4e-views` provides several helper functions for doing typical things with emails such as storing attachments as described above. These functions can be used in custom views too.
+`mu4e-views` provides several helper functions for typical operations with emails such as storing attachments as described above. These functions can be used in custom views too.
