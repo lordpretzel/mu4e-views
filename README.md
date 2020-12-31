@@ -173,3 +173,49 @@ To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-co
 ~~~
 
 `mu4e-views` provides several helper functions for typical operations with emails such as storing attachments as described above. These functions can be used in custom views too.
+
+### Development
+
+If you want to hack on `mu4e-view`, it maybe usefult to build docker containers for testing with different `mu4e` versions. There are two dockerfiles: `Dockerfile` builds a non-gui version and `Dockerfile-gui` builds a gui version for testing with xwidgets that you can connect to via `VNC`.
+
+#### Selecting which `mu4e` versions to include
+
+To change which versions are build change
+the `VERSIONS` variable in `./dockerfiles/build-mu.sh`. Note that versions are git tags, e.g., `master` or `1.4.13`.
+
+#### Building the docker images
+
+For both docker images you need some valid `Maildir` to be included into the image which should be stored in `YOUR_MU4E_SRC_ROOT_DIR/Maildir`. The docker images will contain multiple `mu` versions. Then run from the root `mu4e` source directory:
+
+~~~sh
+docker build -t mu4e-views .
+docker build -f ./Dockerfile-gui -t mu4e-views-gui .
+~~~
+
+#### Using the images
+
+To run the non-gui image and expose your version of `mu4e`. Run the following from the `mu4e-views` directory.
+
+~~~sh
+docker run -ti --rm -v $(pwd):/mu4e-views mu4e-views /bin/bash
+~~~
+
+For the the gui version you would want to run it in daemon mode and expose the VNC port:
+
+~~~sh
+docker run -d --rm -p 5900:5900 -v $(pwd):/mu4e-views mu4e-views-gui
+~~~
+
+Then use your favorite VNC viewer to connect to the container.
+
+#### Running emacs with a particular mu version
+
+The images include scripts to start emacs with a particular mu version, e.g., `/emu-master.sh` or `/emu-1.4.13.sh`. The build will create one script for each version in `VERSIONS` (see above).
+
+
+ This docker container is meant for debugging mu4e-views with different mu versions in gui environment
+ A typical use case is to start a container with your local development version of mu4e-views
+ E.g., from your local mu4e-views git repo:
+
+ To build the docker image copy some valid Maildir to ./Maildir and run "docker build -t mu4e-views-test ."
+ If you need to test with a different version, then add it to VERSIONS="1.3.10 1.4.13 master" in

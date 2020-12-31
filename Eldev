@@ -7,3 +7,7 @@
 (eldev-use-local-dependency "/usr/local/share/emacs/site-lisp/mu/mu4e/")
 
 (eldev-use-plugin 'autoloads)
+
+;; do not include the test config for docker tests
+(setq eldev-standard-excludes
+      (append eldev-standard-excludes '("./testconfig/**")))
