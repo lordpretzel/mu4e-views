@@ -57,6 +57,10 @@
 	("html" . (:viewfunc mu4e-views-xwidget-mu4e-view
                          :is-view-window-p mu4e-views-xwidget-is-view-window-p
                          ))
+    ;; open as pdf file
+    ("pdf" . (:viewfunc mu4e-view-pdf-view-message
+                        :is-view-window-p mu4e-views-pdf-is-view-window-p
+                        :create-view-window mu4e-views-text-create-view-window))
     ;; open with browser
 	("browser" . (:viewfunc mu4e-views-view-in-browser
                             :no-view-window t))
@@ -64,7 +68,11 @@
     ("gnus" . (:viewfunc mu4e-views-gnus-view-message
                          :create-view-window mu4e-views-text-create-view-window
                          :is-view-window-p mu4e-views-text-is-view-window-p
-                         :view-function-only-msg t)))
+                         :view-function-only-msg t))
+    ;; dispatch to other view methods choosen based on predicates
+    ("dispatcher" .
+               (:viewfunc mu4e-views-dispatcher-view-message
+                          :is-view-window-p mu4e-views-dispatcher-is-view-window-p)))
   "A list of commands for viewing messages in mu4e.
 
 Currently supported are:
@@ -97,6 +105,25 @@ method. In this case also `:is-view-window-p' does not have to be
 provided"
   :group 'mu4e-views
   :type 'alist)
+
+(defcustom mu4e-views-dispatcher-predicate-view-map
+  `((,(lambda (msg) (mu4e-message-field msg :body-html)) . "html")
+    (,(lambda (msg) (ignore msg) t) . "text"))
+  "Alist of (predicate . view-method) pairs.
+PREDICATE should be a predicate and view-method is a string whcih should be a
+valid `mu4e-views' view method.  This is used by the dispatcher view method to
+determine which view method to use for an email.  The predicates can refer to a
+variable msg to access information about the email to be shown.  This is a
+`mu4e' message plist."
+  :group 'mu4e-views
+  :type 'alist)
+
+(defcustom mu4e-views-html-to-pdf-command
+  "html-pdf %h %p"
+  "Command to run to translate html files into pdf files.
+%h and %p will be replaced with the input html file name and output PDF file name."
+  :group 'mu4e-views
+  :type 'string)
 
 (defcustom mu4e-views-respect-mu4e-view-use-gnus
   nil
@@ -214,10 +241,10 @@ object.")
 
 ;; ********************************************************************************
 ;; helper function for debug logging
-(defun mu4e-views-debug-log (format-string &rest args)
+(defmacro mu4e-views-debug-log (format-string &rest args)
   "Use message with FORMAT-STRING and ARGS, but only when mu4e-views--debug is true."
-  (when mu4e-views--debug
-    (message format-string args)))
+  `(when mu4e-views--debug
+    (message ,format-string ,@args)))
 
 ;; ********************************************************************************
 ;; helper functions for advising
@@ -342,6 +369,7 @@ https://github.com/abo-abo/swiper")))
   (ignore msg)
   (unless (fboundp 'xwidget-webkit-browse-url)
 	(mu4e-error "No xwidget support available"))
+  (setq mu4e~view-message msg)
   ;; select window
   (select-window win)
   ;; show message
@@ -356,10 +384,45 @@ https://github.com/abo-abo/swiper")))
       (eq major-mode 'xwidget-webkit-mode))))
 
 ;; ********************************************************************************
-;; VIEWING METHOD: html
+;; VIEWING METHOD: dispatcher
+(defun mu4e-views-dispatcher-view-message (html msg win)
+  "Dispatches to another viewing method.
+This is based the map from predicate to view method in
+`mu4e-views-dispatcher-predicate-view-map'.  Parameters HTML, MSG and WIN are
+passed on to the selected view method."
+  (let* ((viewmethod
+         (cdr (assoc
+               (cdr (seq-find (lambda (it) (funcall (car it) msg))
+                              mu4e-views-dispatcher-predicate-view-map
+                              '(t  "text")))
+                mu4e-views-view-commands)))
+         (viewfun (plist-get viewmethod :viewfunc))
+         (createwinfun (plist-get viewmethod :create-view-window))
+         (onlymsg (plist-get viewmethod :view-function-only-msg)))
+    (mu4e-views-debug-log "viewmethod <%s> for mssage %s"
+                          viewmethod
+                          (mu4e-message-field msg  :docid))
+    (when createwinfun
+      (funcall createwinfun win))
+    (if onlymsg
+        (funcall viewfun msg win)
+      (funcall viewfun html msg win))))
+
+(defun mu4e-views-dispatcher-is-view-window-p (win)
+  "Check whether any of the view methods we are dispatching too recognizes that window WIN as a view window."
+  (let ((viewmethods (mapcar (lambda (it) (thread-first it
+                                          (cdr)
+                                          (assoc mu4e-views-view-commands)
+                                          (cdr)
+                                          (plist-get :is-view-window-p)))
+                             mu4e-views-dispatcher-predicate-view-map)))
+    (seq-find (lambda (v) (funcall v win)) viewmethods)))
+
+;; ********************************************************************************
+;; VIEWING METHOD: text
 
 ; keep byte compiler quiet. This is function is dynamically defined by mu4e based on the selected viewing method.
-(declare-function 'mu4e-view-mode "mu4e-view" nil)
+(declare-function mu4e-view-mode "mu4e-view" nil t)
 
 (defun mu4e-views-text-view-message (msg win)
   "Copy of most of the cost of `mu4e~view-internal' to be used when using this viewing method from `mu4e-views'.  Takes MSG plist and window WIN as input."
@@ -375,7 +438,7 @@ https://github.com/abo-abo/swiper")))
       (let ((inhibit-read-only t))
         (if (version-list-<= '(1 5) mu4e-ver)
             (progn
-              (mu4e-views-debug-log "IN TEXT VIEW 1.5 selected message is %s" msg)
+              (mu4e-views-debug-log "IN TEXT VIEW 1.5 selected message is %s" (mu4e-message-field msg :docid))
               (erase-buffer)
               (mu4e~delete-all-overlays)
               (insert (mu4e-view-message-text msg))
@@ -387,7 +450,7 @@ https://github.com/abo-abo/swiper")))
               (when (not embedded) (setq mu4e~view-message msg))
               (mu4e-view-mode)
               (when embedded (local-set-key "q" 'kill-buffer-and-window)))
-          (mu4e-views-debug-log "IN TEXT VIEW < 1.5 selected message is %s" msg)
+          (mu4e-views-debug-log "IN TEXT VIEW < 1.5 selected message is %s" (mu4e-message-field msg :docid))
           (when (or embedded (not (mu4e~view-mark-as-read-maybe msg)))
             (erase-buffer)
             (mu4e~delete-all-overlays)
@@ -416,11 +479,41 @@ https://github.com/abo-abo/swiper")))
   "Check whether WINDOW is the mu4e-view window for the `text' or `gnus' (standard mu4e method)."
   (let ((buf (window-buffer window)))
     (or (eq buf mu4e~headers-loading-buf)
-        (eq buf (mu4e-get-view-buffer)))))
+        (eq buf (get-buffer mu4e~view-buffer-name)))))
+
+;; ********************************************************************************
+;; VIEWING METHOD: pdf
+;; viewing email as a pdf (available as action and as a view method. This uses html-pdf
+(defun mu4e-view-pdf-view-message (html msg win)
+  "Transform message HTML file into pdf by running `mu4e-views-html-to-pdf-command'."
+  (ignore msg)
+  (let* ((pdf (concat (file-name-sans-extension html) ".pdf"))
+         (cmd (format-spec mu4e-views-html-to-pdf-command
+                           (format-spec-make ?h html ?p pdf))))
+    (setq mu4e~view-message msg)
+    ;; select window
+    (select-window win)
+    ;; kill previous pdf buffer if there (don't want them to accumulate)
+    (when (or (eq major-mode 'pdf-view-mode)
+              (eq major-mode 'doc-view-mode))
+      (kill-buffer (window-buffer win)))
+    ;; run html-to-pdf command
+    (shell-command cmd nil nil) ;;TODO set buffer
+    ;; show message
+    (switch-to-buffer
+     (find-file-noselect pdf) t t)))
+
+(defun mu4e-views-pdf-is-view-window-p (window)
+  "Check whether WINDOW is the mu4e-view window for the `pdf' view method."
+  (let ((buf (window-buffer window)))
+    (with-current-buffer buf
+      (or (eq major-mode 'pdf-view-mode)
+          (eq major-mode 'doc-view-mode)
+          (eq buf mu4e~headers-loading-buf)))))
 
 ;; ********************************************************************************
 ;; VIEWING METHOD: browser
-;; functions viewing email in a webbrowser (available as action and as a view method)
+;; viewing email in a webbrowser (available as action and as a view method)
 (defun mu4e-views-gnus-view-message (msg win)
   "View message MSG on window WIN using Gnus article mode."
   (require 'gnus-art)
@@ -455,13 +548,20 @@ https://github.com/abo-abo/swiper")))
        gnus-summary-buffer (get-buffer-create " *appease-gnus*")
        gnus-original-article-buffer (current-buffer))
       (run-hooks 'gnus-article-decode-hook)
-      (let ((mu4e~view-rendering t) ; customize gnus in mu4e
-            (max-specpdl-size mu4e-view-max-specpdl-size)
-            (gnus-blocked-images ".") ;; don't load external images.
-            ;; Possibly add headers (before "Attachments")
-            (gnus-display-mime-function (mu4e~view-gnus-display-mime msg))
-            (gnus-icalendar-additional-identities (mu4e-personal-addresses)))
-        (gnus-article-prepare-display))
+      (mu4e-views-gnus-prepare-display
+       mu4e-view-max-specpdl-size
+       (mu4e~view-gnus-display-mime msg)
+       (mu4e-personal-addresses)
+       )
+      ;; (setq lexical-binding nil)
+      ;;   (let ((mu4e~view-rendering t) ; customize gnus in mu4e
+      ;;         (max-specpdl-size mu4e-view-max-specpdl-size)
+      ;;         (gnus-blocked-images ".") ;; don't load external images.
+      ;;         ;; Possibly add headers (before "Attachments")
+      ;;         (gnus-display-mime-function (mu4e~view-gnus-display-mime msg))
+      ;;         (gnus-icalendar-additional-identities (mu4e-personal-addresses)))
+      ;;     (gnus-article-prepare-display)))
+      ;; (setq lexical-binding t)
       (setq mu4e~gnus-article-mime-handles gnus-article-mime-handles)
       (setq mu4e~view-message msg)
       (mu4e-view-mode)
@@ -474,6 +574,16 @@ https://github.com/abo-abo/swiper")))
                     (setq mu4e~gnus-article-mime-handles nil))))
       (read-only-mode))
     (select-window previouswin)))
+
+(defun mu4e-views-gnus-prepare-display (mymax-specpdl-size mime-functions idents)
+    "Use dynamic scope to override gnus settings."
+    (let ((mu4e~view-rendering t) ; customize gnus in mu4e
+          (max-specpdl-size mymax-specpdl-size)
+          (gnus-blocked-images ".") ;; don't load external images.
+          ;; Possibly add headers (before "Attachments")
+          (gnus-display-mime-function mime-functions)
+          (gnus-icalendar-additional-identities idents))
+      (gnus-article-prepare-display)))
 
 (defun mu4e-views-mu4e-view-in-browser-action (msg)
   "Open email MSG in browser using `browse-url'."
@@ -599,8 +709,9 @@ Return the file's name.  Text messages are converted into html."
 								      (or (null (plist-get part :attachment))
 								          (null (plist-get part :cid))))
 								    (mu4e-message-field msg :parts))))
-	(unless (or html txt)
-	  (mu4e-error "No body part for this message"))
+    (unless (or html txt)
+      (setq txt "")
+	  (mu4e-views-debug-log "No body part for this message"))
 	;; remove hooks and advices that are not needed for writing constructed content to a file, but slow us down
 	(mu4e-views-advice-remove-if-def #'set-visited-file-name 'doom-modeline-update-buffer-file-name)
 	(mu4e-views-advice-remove-if-def #'set-visited-file-name 'lsp--on-set-visited-file-name)
@@ -668,7 +779,7 @@ Return the file's name.  Text messages are converted into html."
         (other-buf nil)
         (is-view-p (plist-get mu4e-views--current-viewing-method :is-view-window-p))
         (header-buffer (mu4e-get-headers-buffer)))
-    (mu4e-views-debug-log "TEST FUNCTION %s " is-view-p)
+    (mu4e-views-debug-log "CHECKING WHETHER WE HAVE THE CORRECT WINDOW LAYOUT\nVIEW WINDOW TEST FUNCTION <%s> ..." is-view-p)
     (if (eq (length (window-list)) 2)
         ;; we have two window check whether they are the correct ones
         (progn
@@ -680,18 +791,23 @@ Return the file's name.  Text messages are converted into html."
                        (setq have-view t))
                      (unless (or (eq buf header-buffer) (funcall is-view-p w))
                        (setq other-buf t))))
-          (mu4e-views-debug-log "HAVE HEADER: %s, HAVE VIEW: %s HAVE OTHER: %s\nwindows are %s" have-header have-view other-buf (window-list))
+          (mu4e-views-debug-log "\t%s, because headers-window?: %s, view-window?: %s other windows present?: %s\nwindows are %s" (if (and have-header have-view (not other-buf)) "YES" "NO") have-header have-view other-buf (window-list))
           (and have-header have-view (not other-buf)))
       ;; return nil if window list has not exactly 2 windows
+      (mu4e-views-debug-log "\tdo not have 2 windows, but %s" (length (window-list)))
       nil)))
 
 (defun mu4e-views-mu4e-view-window-p (&optional window)
   "Return t if WINDOW is the mu4e-views message window.  If WINDOW is omitted, then check for the current window.  Use `:is-view-window-p' of the current viewing method."
   (let ((is-view-p (plist-get mu4e-views--current-viewing-method :is-view-window-p))
         (thewindow (or window (selected-window))))
-    (mu4e-views-debug-log "selected win: %s" thewindow)
+    (mu4e-views-debug-log "VIEW-WINDOW-P: the selected win %s ..." thewindow)
     (if (mu4e-views-mu4e-header-and-view-windows-p)
-        (funcall is-view-p thewindow)
+        (let ((isview (funcall is-view-p thewindow)))
+          (mu4e-views-debug-log (concat "\t" (if isview "is" "isnot") " the view window.")
+				isview)
+	  isview)
+      (mu4e-views-debug-log "\twe are not even in correct layout!")
       nil)))
 
 (defun mu4e-views-get-view-win (&optional noerror)
@@ -707,6 +823,15 @@ If optional argument NOERROR is t then do not throw an error if the window does 
         win
       (unless noerror (error "View window not found in %s" (window-list))))))
 
+(defun mu4e-views-get-view-window-maybe ()
+  "Return view window if it exists."
+  (mu4e-views-get-view-win t))
+
+(defun mu4e-views-get-view-buffer ()
+  "If view window exists return its buffer."
+  (let ((win (mu4e-views-get-view-win t)))
+    (when win (window-buffer win))))
+
 (defun mu4e-views-headers-redraw-get-view-window ()
   "Unless we already have the correct window layout, rebuild it.
 
@@ -714,52 +839,44 @@ For that we close all windows, redraw the headers buffer based on
 the value of `mu4e-split-view', and return a window for the
 message view (if the current viewing method needs a window)."
   ;; if single is used then the headers buffer needs to be replaced
-  (mu4e-views-debug-log "IN REDRAW!")
+  (mu4e-views-debug-log "REDRAW WINDOWS IF NECESSARY")
   (let ((create-view-fun (plist-get mu4e-views--current-viewing-method :create-view-window)))
     ;; single window
     (when (eq mu4e-split-view 'single-window)
-      (mu4e-views-debug-log "SINGLE PANE")
+      (mu4e-views-debug-log "\twe are using SINGLE PANE")
       (let* ((win (selected-window))
              (viewwin (mu4e-views-get-view-win t))
              (usewin (if (and viewwin (window-live-p viewwin)) viewwin win)))
         (setq mu4e-views--view-window usewin)
         (setq mu4e~headers-view-win usewin)
         (when create-view-fun
-          (mu4e-views-debug-log "CALL CREATE VIEW FUNCTION: %s" create-view-fun)
-          (funcall create-view-fun newwin))
+          (mu4e-views-debug-log "\tCALL CREATE VIEW FUNCTION: %s" create-view-fun)
+          (funcall create-view-fun viewwin))
         usewin))
     ;; if we have already the right setup, then just return the mu4e-views window
-    (mu4e-views-debug-log "MULTIPLE PANES")
+    (mu4e-views-debug-log "\twe are using MULTIPLE PANES")
     (if (mu4e-views-mu4e-header-and-view-windows-p)
         (progn
-          (mu4e-views-debug-log "REUSE EXISTING WINDOW %s" (mu4e-views-get-view-win))
+          (mu4e-views-debug-log "\tREUSE EXISTING WINDOW %s" (mu4e-views-get-view-win))
           (mu4e-views-get-view-win))
       ;; create the window
       (unless (buffer-live-p (mu4e-get-headers-buffer))
-        (mu4e-error "No headers buffer available"))
+        (mu4e-error "\tNo headers buffer available"))
       (switch-to-buffer (mu4e-get-headers-buffer))
       (delete-other-windows)
-      ;; kill the existing view buffer
-      ;; (when (buffer-live-p (mu4e-get-view-buffer))
-      ;;   (kill-buffer (mu4e-get-view-buffer)))
       ;; get a new view window
-      (let* ((new-win-func
-              (cond
-               ((eq mu4e-split-view 'horizontal) ;; split horizontally
-                '(split-window-vertically mu4e-headers-visible-lines))
-               ((eq mu4e-split-view 'vertical) ;; split vertically
-                '(split-window-horizontally mu4e-headers-visible-columns))))
-             (newwin (with-demoted-errors "Unable to split window: %S"
-                       (eval new-win-func))))
-        (when newwin
-          (mu4e-views-debug-log "WINDOW TO USE FOR VIEWING: %s\nall windows: %s" newwin (window-list))
-          (setq mu4e-views--view-window newwin)
-          (setq mu4e~headers-view-win newwin)
-          ;; if viewing method provdes a setup method for the viewing window then call it
-          (when create-view-fun
-            (mu4e-views-debug-log "CALL CREATE VIEW FUNCTION: %s" create-view-fun)
-            (funcall create-view-fun newwin))
-          newwin)))))
+      (let ((theviewwin (cond ((eq mu4e-split-view 'horizontal) ;; split horizontally
+                               (split-window-vertically mu4e-headers-visible-lines))
+                              ((eq mu4e-split-view 'vertical) ;; split vertically
+                               (split-window-horizontally mu4e-headers-visible-columns)))))
+        (mu4e-views-debug-log "\tWINDOW TO USE FOR VIEWING: %s\n\t\tall windows: %s" theviewwin (window-list))
+        (setq mu4e-views--view-window theviewwin)
+        (setq mu4e~headers-view-win theviewwin)
+        ;; if viewing method provdes a setup method for the viewing window then call it
+        (when create-view-fun
+          (mu4e-views-debug-log "\tCALL CREATE VIEW FUNCTION: %s" create-view-fun)
+          (funcall create-view-fun theviewwin))
+        theviewwin))))
 
 (defun mu4e-views-headers-redraw-get-view-buffer ()
   "Return the view buffer, redrawing the view window if we do not have the correct layout."
@@ -796,7 +913,7 @@ window."
          (decrypt (mu4e~decrypt-p msg))
          (verify  (not mu4e-view-use-gnus))
          (mu4e-ver (version-to-list mu4e-mu-version)))
-      (mu4e-views-debug-log "IN HEADERS VIEW selected message is %s" msg)
+      (mu4e-views-debug-log "IN HEADERS VIEW selected message is %s" docid)
       (cond
        ((version-list-<= mu4e-ver '(1 3 9)) (mu4e~proc-view docid mu4e-view-show-images decrypt))
        ((version-list-< mu4e-ver '(0 9 9)) (mu4e~proc-view docid mu4e-view-show-images))
@@ -806,7 +923,7 @@ window."
   "Replacement for `mu4e-view-msg-internal'.
 
 Takes `mu4e' message MSG as input."
-  (mu4e-views-debug-log "IN INTERNAL!")
+  (mu4e-views-debug-log "IN VIEW-MSG-INTERNAL!")
   (let* ((viewfunc (plist-get mu4e-views--current-viewing-method :viewfunc))
          (only-msg (plist-get mu4e-views--current-viewing-method :view-function-only-msg))
          (no-window (plist-get mu4e-views--current-viewing-method :no-view-window))
@@ -814,11 +931,11 @@ Takes `mu4e' message MSG as input."
 	     (txt (mu4e-message-field msg :body-txt))
          ;; (currentwin (selected-window))
          htmlfile)
-    (mu4e-views-debug-log "use view function: %s" viewfunc)
+    (mu4e-views-debug-log "\tuse view function: %s" viewfunc)
     (unless only-msg
       ;; if there is a no content still show message for its metadata (e.g., only attachments)
 	  (unless (or html txt)
-	    (mu4e-views-debug-log "No body part for this message")
+	    (mu4e-views-debug-log "\tNo body part for this message")
         (setq txt "")))
 	(setq mu4e-views--current-mu4e-message msg)
     (unless only-msg
@@ -840,16 +957,17 @@ Takes `mu4e' message MSG as input."
 (defun mu4e-views-switch-to-right-window ()
   "Switch to a different window based on `mu4e-views-next-previous-message-behaviour'."
   (if (plist-get mu4e-views--current-viewing-method :no-view-window)
-      (mu4e-views-debug-log "method without view window, do not attempt to switch.")
-    (mu4e-views-debug-log "behavior is %s currently on header? %s"
+      (mu4e-views-debug-log "SWITCH-TO-WINDOW: method without view window, do not attempt to switch.")
+    (mu4e-views-debug-log "SWITCH-TO-WINDOW: behavior is %s currently on header? %s"
              mu4e-views-next-previous-message-behaviour
              mu4e-views--header-selected)
     (cl-case mu4e-views-next-previous-message-behaviour
       (stick-to-current-window (if mu4e-views--header-selected
                                    (select-window
                                     (get-buffer-window (mu4e-get-headers-buffer)))
-                                 (select-window
-                                  (mu4e-views-get-view-win))))
+                                 (let ((viewwin (mu4e-views-get-view-win t)))
+                                   (when viewwin
+                                     (select-window viewwin)))))
       (always-switch-to-view (select-window
                               (mu4e-views-get-view-win)))
       (always-switch-to-headers (mu4e~headers-select-window)))))
@@ -921,7 +1039,7 @@ If this succeeds, return the new docid.  Otherwise, return nil."
     (mu4e-error "Must be in mu4e-headers-mode (%S)" major-mode))
   (let* ((_succeeded (zerop (forward-line lines)))
          (docid (mu4e~headers-docid-at-point)))
-    (mu4e-views-debug-log "move to docid: %s" docid)
+    (mu4e-views-debug-log "MOVE TO DOCID: %s" docid)
     ;; move point, even if this function is called when this window is not
     ;; visible
     (when docid
@@ -948,8 +1066,9 @@ If this succeeds, return the new docid.  Otherwise, return nil."
 Negative numbers move backwards.  Record the window that we started from to
 be able to respect `mu4e-views-next-previous-message-behaviour'."
   (interactive)
+  (mu4e-views-debug-log "MOVE-WARPPER\n\tinitiated from: %s\theader was selected? %s" (selected-window) (not (mu4e-views-mu4e-view-window-p (selected-window))))
   (setq mu4e-views--header-selected (not (mu4e-views-mu4e-view-window-p (selected-window))))
-  (mu4e-views-debug-log "header was selected? %s" mu4e-views--header-selected)
+  (mu4e-views-debug-log "\t after call window was: %s is header %s" (selected-window) mu4e-views--header-selected)
   (with-current-buffer (mu4e-get-headers-buffer)
     (mu4e-views-mu4e-headers-move n)))
 
@@ -1141,6 +1260,18 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-view-fetch-url mu4e-views--current-mu4e-message))
 
+(defun mu4e-views-view-prev-or-next-unread (backwards)
+  "Move point to the next or previous (when BACKWARDS is non-`nil')
+unread message header in the headers buffer connected with this
+message view. If this succeeds, return the new docid. Otherwise,
+return nil."
+  (setq mu4e-views--header-selected (not (mu4e-views-mu4e-view-window-p (selected-window))))
+  (when (not mu4e-views--header-selected)
+    (mu4e~view-in-headers-context
+     (mu4e~headers-prev-or-next-unread backwards))
+    (with-current-buffer (mu4e-get-headers-buffer)
+    (mu4e-headers-view-message))))
+
 ;; ********************************************************************************
 ;; Minor mode that bounds keys to access mu4e email actions like saving attachments.
 ;; create a custom keymap for mu4e-views-view-actions-mode-map
@@ -1157,6 +1288,14 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
     (define-key km (kbd "a") #'mu4e-views-mu4e-view-action)
     (define-key km (kbd "f") #'mu4e-views-mu4e-view-fetch-url)
     (define-key km (kbd "y") #'mu4e-views-select-other-view)
+    (define-key km (kbd "[") #'mu4e-view-headers-prev-unread)
+    (define-key km (kbd "]") #'mu4e-view-headers-next-unread)
+    (define-key km (kbd ";") #'mu4e-context-switch)
+    (define-key km (kbd "$") #'mu4e-show-log)
+    (define-key km (kbd "H") #'mu4e-display-manual)
+    (define-key km (kbd "B") #'mu4e-headers-search-bookmark-edit)
+    (define-key km (kbd "<") #'beginning-of-buffer)
+    (define-key km (kbd ">") #'end-of-buffer)
     km)
   "The keymap for `Mu4e-views-view-actions-mode'.")
 
@@ -1208,7 +1347,9 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (mu4e-views-advice-unadvice 'mu4e-select-other-view)
   (mu4e-views-advice-unadvice 'mu4e-view-headers-next)
   (mu4e-views-advice-unadvice 'mu4e-view-headers-previous)
-  (mu4e-views-advice-unadvice 'mu4e~view-gnus))
+  (mu4e-views-advice-unadvice 'mu4e~view-gnus)
+  (mu4e-views-advice-unadvice 'mu4e-get-view-buffer)
+  (mu4e-views-advice-unadvice 'mu4e~view-prev-or-next-unread))
 
 (defun mu4e-views-advice-mu4e ()
   "Install the advices on mu4e functions used by mu4e-views to overwrite its functionality."
@@ -1225,7 +1366,11 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (advice-add 'mu4e-view-headers-previous
               :override #'mu4e-views-mu4e-headers-prev)
   (advice-add 'mu4e~view-gnus
-              :override #'mu4e-views-view-msg-internal))
+              :override #'mu4e-views-view-msg-internal)
+  (advice-add 'mu4e-get-view-buffer
+              :override #'mu4e-views-get-view-buffer)
+  (advice-add 'mu4e~view-prev-or-next-unread
+              :override #'mu4e-views-view-prev-or-next-unread))
 
 (provide 'mu4e-views)
 ;;; mu4e-views.el ends here
