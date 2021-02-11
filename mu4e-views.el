@@ -630,15 +630,12 @@ Return the file's name.  Text messages are converted into html."
 				  (if (plist-get attachment :temp)
 					  (replace-match (format "src=\"%s\""
 									         (plist-get attachment :temp)))
-					(replace-match (format "src=\"%s%s\"" temporary-file-directory
-								           (plist-get attachment :name)))
-					(let ((tmp-attachment-name
-						   (format "%s%s" temporary-file-directory
-							       (plist-get attachment :name))))
+					(let ((tmp-attachment-name (save-match-data
+								     (mu4e-make-temp-file (file-name-extension (plist-get attachment :name))))))
+					  (replace-match (format "src=\"%s\"" tmp-attachment-name))
 					  (mu4e~proc-extract 'save (mu4e-message-field msg :docid)
 								         (plist-get attachment :index)
-								         mu4e-decryption-policy tmp-attachment-name)
-					  (mu4e-remove-file-later tmp-attachment-name)))))
+								         mu4e-decryption-policy tmp-attachment-name)))))
 			  attachments)
 		(save-buffer)
 		;; restore normal behaviour
