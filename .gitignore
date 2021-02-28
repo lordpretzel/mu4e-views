@@ -22,3 +22,4 @@ dist
 # End of https://www.toptal.com/developers/gitignore/api/elisp
 mu4e-views-autoloads.el
 /test-file.el
+/Maildir/
