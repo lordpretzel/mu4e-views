@@ -283,6 +283,10 @@ by applying itself to the children of the current node using
   mu4e-views-default-view-method
   "Records which method for viewing email in mu4e is currently active.")
 
+(defvar mu4e-views--one-time-viewing-method
+  nil
+  "Cache a one-time-use viewing method.")
+
 (defvar mu4e-views--view-window
   nil
   "Caches the view window.")
@@ -412,8 +416,9 @@ https://github.com/abo-abo/swiper")))
         (funcall action res)
       res)))
 
-                                        ; ********************************************************************************
-                                        ; Functions to create and manage view windows
+;; ********************************************************************************
+;; Functions to create and manage view windows
+
 ;;;###autoload
 (defun mu4e-views-mu4e-use-view-msg-method (method)
   "Apply METHOD for viewing emails in mu4e-headers view."
@@ -432,6 +437,10 @@ https://github.com/abo-abo/swiper")))
 	(unless (eq cmd oldmethod)
 	  (setq mu4e-views--current-viewing-method cmd)
       (mu4e-views-advice-mu4e))))
+
+(defun mu4e-views-get-current-viewing-method ()
+  "Return either currently active one-time viewing method or the currently selected viewing method."
+  (or mu4e-views--one-time-viewing-method mu4e-views--current-viewing-method))
 
 ;; ********************************************************************************
 ;; VIEWING METHOD: html
@@ -457,7 +466,7 @@ https://github.com/abo-abo/swiper")))
       (eq major-mode 'xwidget-webkit-mode))))
 
 ;; ********************************************************************************
-;; VIEWING METHOD: html
+;; VIEWING METHOD: html-src
 ;; functions for viewing a mu4e message html source code
 (defun mu4e-views-html-src-view-message (html msg win)
   "View html source code HTML of message MSG in window WIN."
@@ -512,7 +521,7 @@ passed on to the selected view method."
 ;; ********************************************************************************
 ;; VIEWING METHOD: text
 
-                                        ; keep byte compiler quiet. This is function is dynamically defined by mu4e based on the selected viewing method.
+;; keep byte compiler quiet. This is function is dynamically defined by mu4e based on the selected viewing method.
 (declare-function mu4e-view-mode "mu4e-view" nil t)
 
 (defun mu4e-views-text-view-message (msg win)
@@ -853,7 +862,7 @@ determine whether to filter or not."
 					  (replace-match (format "src=\"%s\""
 									         (plist-get attachment :temp)))
 					(let ((tmp-attachment-name (save-match-data
-								     (mu4e-make-temp-file (file-name-extension (plist-get attachment :name))))))
+								                 (mu4e-make-temp-file (file-name-extension (plist-get attachment :name))))))
 					  (replace-match (format "src=\"%s\"" tmp-attachment-name))
 					  (mu4e~proc-extract 'save (mu4e-message-field msg :docid)
 								         (plist-get attachment :index)
@@ -886,7 +895,7 @@ in sequence.  If FILTERS is non-nil, then it should be a list of
 filters to apply instead."
   (let ((filter-chain (or filters mu4e-views-html-dom-filter-chain)))
     (mu4e-views-debug-log
-     "FILTER HTML:\n\t%filters: %s\n\thave LIBXML: %s"
+     "FILTER HTML:\n\tfilters: %s\n\thave LIBXML: %s"
      filters
      (libxml-available-p))
     (if (not (libxml-available-p))
@@ -944,7 +953,7 @@ MSG is just passed on when recursing into the children using F."
         (if (string-prefix-p  "cid:" src)
             (mu4e-views-apply-dom-filter-to-children msg n f)
           (mu4e-views-dom-remove-attr-and-map-children msg n 'src f)))
-  (mu4e-views-apply-dom-filter-to-children msg n f)))
+    (mu4e-views-apply-dom-filter-to-children msg n f)))
 
 (defun mu4e-views-default-dom-filter (msg n)
   "Default filter function for html emails.
@@ -977,7 +986,7 @@ N."
   (let ((have-header nil)
         (have-view nil)
         (other-buf nil)
-        (is-view-p (plist-get mu4e-views--current-viewing-method :is-view-window-p))
+        (is-view-p (plist-get (mu4e-views-get-current-viewing-method) :is-view-window-p))
         (header-buffer (mu4e-get-headers-buffer)))
     (mu4e-views-debug-log "CHECKING WHETHER WE HAVE THE CORRECT WINDOW LAYOUT\nVIEW WINDOW TEST FUNCTION <%s> ..." is-view-p)
     (if (eq (length (window-list)) 2)
@@ -999,7 +1008,7 @@ N."
 
 (defun mu4e-views-mu4e-view-window-p (&optional window)
   "Return t if WINDOW is the mu4e-views message window.  If WINDOW is omitted, then check for the current window.  Use `:is-view-window-p' of the current viewing method."
-  (let ((is-view-p (plist-get mu4e-views--current-viewing-method :is-view-window-p))
+  (let ((is-view-p (plist-get (mu4e-views-get-current-viewing-method) :is-view-window-p))
         (thewindow (or window (selected-window))))
     (mu4e-views-debug-log "VIEW-WINDOW-P: the selected win %s ..." thewindow)
     (if (mu4e-views-mu4e-header-and-view-windows-p)
@@ -1015,7 +1024,7 @@ N."
 
 If optional argument NOERROR is t then do not throw an error if the window does not exist."
   (let (win
-        (view-window-p (plist-get mu4e-views--current-viewing-method :is-view-window-p)))
+        (view-window-p (plist-get (mu4e-views-get-current-viewing-method) :is-view-window-p)))
     (cl-loop for w in (window-list) do
              (when (and (funcall view-window-p w) (window-valid-p w))
                (setq win w)))
@@ -1040,7 +1049,7 @@ the value of `mu4e-split-view', and return a window for the
 message view (if the current viewing method needs a window)."
   ;; if single is used then the headers buffer needs to be replaced
   (mu4e-views-debug-log "REDRAW WINDOWS IF NECESSARY")
-  (let ((create-view-fun (plist-get mu4e-views--current-viewing-method :create-view-window)))
+  (let ((create-view-fun (plist-get (mu4e-views-get-current-viewing-method) :create-view-window)))
     ;; single window
     (when (eq mu4e-split-view 'single-window)
       (mu4e-views-debug-log "\twe are using SINGLE PANE")
@@ -1118,19 +1127,45 @@ window."
      ((mu4e-views-mu4e-ver-< '(0 9 9)) (mu4e~proc-view docid mu4e-view-show-images))
      (t (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))))
 
-(defun mu4e-views-view-msg-internal (msg)
+(defun mu4e-views-view-current-msg-with-method (&optional method)
+  "Takes `mu4e' message MSG as input and opens it with method METHOD."
+  (interactive)
+  (let ((m (or method (mu4e-views-completing-read
+                       "Select view method: "
+                       (mapcar (lambda (x) (car x)) mu4e-views-view-commands)
+			           :sort t
+			           :require-match t
+			           :caller 'mu4e-views-view-current-msg-with-method))))
+    (when mu4e-views--current-mu4e-message
+      (mu4e-views-debug-log
+       "VIEW CURRENT EMAIL WITH %s:\n\t%s"
+       m
+       (cdr (assoc m mu4e-views-view-commands)))
+      (mu4e-views-view-msg-internal
+       mu4e-views--current-mu4e-message
+       (cdr (assoc m mu4e-views-view-commands))))))
+
+(defun mu4e-views-mu4e-view-as-nonblocked-html ()
+  "View current email using html-nonblocked method."
+  (interactive)
+  (mu4e-views-view-current-msg-with-method "html-nonblock"))
+
+(defun mu4e-views-view-msg-internal (msg &optional viewmethod)
   "Replacement for `mu4e-view-msg-internal'.
 
-Takes `mu4e' message MSG as input."
+Takes `mu4e' message MSG as input.  If VIEWMETHOD is provided,
+then use this instead of the currently selected view method."
   (mu4e-views-debug-log "IN VIEW-MSG-INTERNAL!")
-  (let* ((viewfunc (plist-get mu4e-views--current-viewing-method :viewfunc))
-         (only-msg (plist-get mu4e-views--current-viewing-method :view-function-only-msg))
-         (no-window (plist-get mu4e-views--current-viewing-method :no-view-window))
+  (setq mu4e-views--one-time-viewing-method viewmethod)
+  (let* ((method (mu4e-views-get-current-viewing-method))
+         (viewfunc (plist-get method  :viewfunc))
+         (only-msg (plist-get method :view-function-only-msg))
+         (no-window (plist-get method :no-view-window))
          (html (mu4e-message-field msg :body-html))
 	     (txt (mu4e-message-field msg :body-txt))
-         (filter-pretermined (plist-member mu4e-views--current-viewing-method :filter-html))
-         (filter-html (plist-get mu4e-views--current-viewing-method :filter-html))
-         (filters (plist-get mu4e-views--current-viewing-method :filters))
+         (filter-pretermined (plist-member method :filter-html))
+         (filter-html (when filter-pretermined (if (plist-get method :filter-html) t 0)))
+         (filters (plist-get method :filters))
          htmlfile)
     (mu4e-views-debug-log "VIEW MESSAGE INTERNAL \tuse view function: %s\n\tonly-msg: %s\n\tno-window: %s\n\tfilter-predetermined: %s, force-filtering/nofiltering: %s\n\tcustom-filters: %s"
                           viewfunc
@@ -1146,7 +1181,7 @@ Takes `mu4e' message MSG as input."
         (setq txt "")))
 	(setq mu4e-views--current-mu4e-message msg)
     (unless only-msg
-	  (setq htmlfile (mu4e-views-mu4e~write-body-and-headers-to-html msg)))
+	  (setq htmlfile (mu4e-views-mu4e~write-body-and-headers-to-html msg filter-html filters)))
     (if only-msg
         ;; only pass msg
         (funcall viewfunc msg (mu4e-views-headers-redraw-get-view-window))
@@ -1501,6 +1536,7 @@ succeeds, return the new docid.  Otherwise, return nil."
     (define-key km (kbd "f") #'mu4e-views-mu4e-view-fetch-url)
     (define-key km (kbd "g") #'mu4e-views-mu4e-view-go-to-url)
     (define-key km (kbd "k") #'mu4e-views-mu4e-view-save-url)
+    (define-key km (kbd "i") #'mu4e-views-mu4e-view-as-nonblocked-html)
     (define-key km (kbd "n") #'mu4e-views-mu4e-headers-next)
     (define-key km (kbd "o") #'mu4e-views-mu4e-view-open-attachment)
     (define-key km (kbd "p") #'mu4e-views-mu4e-headers-prev)
