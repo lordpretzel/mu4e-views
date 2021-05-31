@@ -1,6 +1,15 @@
 #!/bin/bash
 VERSIONS="1.3.10 1.4.13 master"
 cd /mu-src
+
+check_exit()
+{
+    if [ $? != 0 ]; then
+        echo "building ${ver} failed"
+        exit 1
+    fi
+}
+
 for ver in ${VERSIONS};
 do
     echo "build mu ${ver}"
@@ -10,6 +19,7 @@ do
         && ./configure --prefix /mu-${ver} \
         && make -j \
         && make install
+    check_exit
     /mu-${ver}/bin/mu init -m /Maildir --muhome=/mu-home-${ver} --my-address "lord_pretzel@gmx.net"
     /mu-${ver}/bin/mu --muhome=/mu-home-${ver} index
     echo "MUVER=${ver} emacs -l /mu4e-views/testconfig/test-file.el" > /emu-${ver}.sh

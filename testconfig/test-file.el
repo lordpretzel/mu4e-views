@@ -11,6 +11,8 @@
     xwidgets-reuse)
   "Default packages")
 
+(setq mu4e-views-debug t)
+
 (defun custom/packages-installed-p ()
   (let ((in t))
   (dolist (pkg custom/packages)
@@ -90,11 +92,17 @@
                                                ("/lordpretzel-gmx/SentMail" . ?s)
                                                ("/lordpretzel-gmx/Spam"       . ?p)
                                                ))
-                    ;;                        (mu4e-drafts-folder . "/bglavic-iit/[bglavic].Drafts")
                     (mu4e-sent-folder .  "/lordpretzel-gmx/SentMail")
-                    ;;                      (mu4e-trash-folder . "/bglavic-iit/[bglavic].Trash")
-                    ;;                    (mu4e-refile-folder . "/bglavic-iit/[bglavic].All Mail")
                     )
            )
          )
       )
+
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+
+(mu4e-context-switch t "gmx")
+
+;; for convenience open source file and test config
+(find-file "/mu4e-views/testconfig/test-file.el")
+(find-file "/mu4e-views/mu4e-views.el")
+(mu4e)

@@ -1,10 +1,34 @@
-# This docker container is meant for debugging mu4e-views with different mu versions
+# This docker container is meant for debugging mu4e-views with different mu versions in gui environment
 # A typical use case is to start a container with your local development version of mu4e-views
 # E.g., from your local mu4e-views git repo: docker run -ti --rm -v $(pwd):/mu4e-views mu4e-views-test /bin/bash
 # There are scripts to start emacs with a particular mu version, e.g., ./emu-master.sh or ./emu-1.4.13.sh
 # To build the docker image copy some valid Maildir to ./Maildir and run "docker build -t mu4e-views-test ."
 # If you need to test with a different version, then add it to VERSIONS="1.3.10 1.4.13 master" in dockerfiles/build-mu.sh
-FROM silex/emacs:master-ci-eldev
+FROM dorowu/ubuntu-desktop-lxde-vnc:latest
+########################################
+# Install packages and emacs
+########################################
+RUN add-apt-repository -y ppa:kelleyk/emacs
+RUN apt-get update && apt-get -y --no-install-recommends install \
+    autoconf-archive                 \
+    automake                         \
+    autotools-dev                    \
+    emacs27                          \
+    g++                              \
+    gcc                              \
+    git                              \
+    isync                            \
+    libglib2.0-dev                   \
+    libgmime-3.0-dev                 \
+    libtool                          \
+    libxapian-dev			         \
+    m4                               \
+    make                             \
+    pkg-config                       \
+    texinfo                          \
+    libgtk-3-dev                     \
+    libwebkit2gtk-4.0-dev            \
+	&& rm -rf /var/lib/apt/lists/*
 ########################################
 # get mu src
 ########################################
@@ -13,23 +37,6 @@ RUN git clone https://github.com/djcb/mu /mu-src
 # Copy Maildir
 ########################################
 COPY ./Maildir /Maildir
-########################################
-# Install packages and emacs
-########################################
-RUN apt-get update && apt-get -y --no-install-recommends install \
-    automake                         \
-    autoconf-archive                 \
-    autotools-dev                    \
-    libglib2.0-dev                   \
-    libxapian-dev			         \
-    libgmime-3.0-dev                 \
-    m4                               \
-    make                             \
-    libtool                          \
-    pkg-config                       \
-    g++                              \
-    isync                            \
-	&& rm -rf /var/lib/apt/lists/*
 ########################################
 # Copy build script and build mu versions
 ########################################
@@ -44,4 +51,11 @@ RUN find /mu4e-views -name \*.elc -execdir rm {} \;
 # Make sure emacs packages we need are installed
 ########################################
 RUN MUVER=master emacs --batch -l /mu4e-views/testconfig/test-file.el
-WORKDIR /
+########################################
+# Set workdir
+########################################
+WORKDIR /home/ubuntu
+########################################
+# Expose VNC port
+########################################
+EXPOSE 5900
