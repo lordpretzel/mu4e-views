@@ -130,7 +130,9 @@ window, otherwise return nil.  `:no-view-window' - if t, then the
 viewing method does not use a separate viewing window, e.g., it
 may be using an external program like a browser to show the
 method. In this case also `:is-view-window-p' does not have to be
-provided.
+provided.  Property `:filter-html' can be used to force
+applying (non-nil) or force not-applying (nil) of filtering of
+external content from emails.
 
 The dispatcher method is special in that it dynamically chooes
 the view method to apply per email, selecting the first view
