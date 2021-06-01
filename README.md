@@ -14,7 +14,7 @@ Also provides methods to access content extracted from an email, e.g., urls or a
 
 **HTML emails may contain malicious content and tracking images. While `mu4e-views` by default applies a filter to remove things like external images that are used for tracking users, the current filtering is rather naive and probably misses many types of tracking.**
 
-With `mu4e-views` you can customize the filtering rules (`mu4e-views-html-dom-filter-chain`). Also you may want to setup customized rules for which view method is used based on the senders email address are coming from (see the discussion of the `dispatcher` view method below).
+With `mu4e-views` you can customize the filtering rules (`mu4e-views-html-dom-filter-chain`). Also you may want to setup customized rules for which view method and filtering is used based on the senders email address are coming from (see the discussion of the `dispatcher` view method and customized views below).
 
 ## Installation
 
@@ -113,6 +113,7 @@ Here is an example setup:
 	    ("M-n" . mu4e-views-cursor-msg-view-window-down) ;; from headers window scroll the email view
 	    ("M-p" . mu4e-views-cursor-msg-view-window-up) ;; from headers window scroll the email view
         ("f" . mu4e-views-toggle-auto-view-selected-message) ;; toggle opening messages automatically when moving in the headers view
+        ("i" . mu4e-views-mu4e-view-as-nonblocked-html) ;; show currently selected email with all remote content
 	    )
   :config
   (setq mu4e-views-completion-method 'ivy) ;; use ivy for completion
@@ -121,6 +122,14 @@ Here is an example setup:
   (setq mu4e-views-next-previous-message-behaviour 'stick-to-current-window) ;; when pressing n and p stay in the current window
   (setq mu4e-views-auto-view-selected-message t)) ;; automatically open messages when moving in the headers view
 ~~~
+
+### Temporarily switching view methods
+
+Sometimes it is useful to be able to view the currently selected email message using a different view method without changing the view method. For instance, you may want to switch from the default html view method (`"html"`) that blocks remote content to one that shows remote content to show images in the current email (`"html-nonblock"`).
+
+`mu4e-views` now provides a function for that: `(mu4e-views-view-current-msg-with-method NAME)`. This function causes `mu4e-views` to redisplay the current email message using the view method named `NAME`. When selecting a different email message afterwards, this email will be shown using your normal viewing method.
+
+Since showing remote content is a common use case, there is convenience function for that: `mu4e-views-mu4e-view-as-nonblocked-html`. You may want to bind this to a key in `mu4e-headers-view`. This is already bound to `"i"` in the `mu4e-views-view-actions-mode-map` keymap used by the `html` view methods.
 
 ### Settings
 
@@ -142,7 +151,7 @@ Here is an example setup:
 - `mu4e-views-html-to-pdf-command` - command to run to translate hmtl into pdf for the *pdf* view method
 - `mu4e-views-respect-mu4e-view-use-gnus` - normally `mu4e-views` determines its own settings to determine what view method to use. If this is non-nil, then `mu4e-view` respects the `mu4e-view-use-gnus` setting.
 
-### xwidgets view
+### xwidgets view (view method "html")
 
 Several keys are bound in this view to store attachments, open attachments, go to urls in the email similar to the regular `mu4e` view window.
 
@@ -164,11 +173,11 @@ To use your keyboard to click on links in an email shown in `xwidgets`, you can 
 
 ### Filtering html content
 
-`mu4e-views` no supports filtering of `html` content to combat email tracking. However, the default filters of `mu4e-views` is quite naive and probably misses many types of tracking content (pull requests for improvement are appreciated). You can set `mu4e-views-html-filter-external-content` to control whether filters are applied or not and customize
+`mu4e-views` now supports filtering of `html` content to combat email tracking. However, the default filters of `mu4e-views` is quite naive and probably misses many types of tracking content (pull requests for improvement are appreciated). You can set `mu4e-views-html-filter-external-content` to control whether filters are applied or not.
 
 - **Note**: filtering is only available when emacs is build with `libxml` support, because it uses `libxml-parse-html-region` to translate html into `dom` model.
 
-You can customize `mu4e-views-html-dom-filter-chain` to define a list of functions that are applied in sequence to filter the email messages HTML dom. A filter function `f` should take as input ta message plist `msg` a dom node `dom` and should return the filters `dom`. To recursively apply `f` to the children of a node, your function `f` needs to explicitly call `(mu4e-views-apply-dom-filter-to-children msg node f)`. While inconvenient this is necessary so that your function can change the DOM structure (e.g., remove a subtree).
+You can customize `mu4e-views-html-dom-filter-chain` to define a list of functions that are applied in sequence to filter the email messages HTML dom. A filter function `f` should take as input ta message plist `msg` a dom node `dom` and should return the filters `dom`. To recursively apply `f` to the children of a node, your function `f` needs to explicitly call `(mu4e-views-apply-dom-filter-to-children msg node f)`. While inconvenient this is necessary so that your function can change the DOM structure (e.g., remove a subtree). A good starting point is to have a look at the implementation of `mu4e-views-default-dom-filter`.
 
 ### Dispatcher view method
 
@@ -192,7 +201,17 @@ If you use this setting, then emails with html content are viewed using xwidgets
 To define a new view, you need to write a function `my-view-func(html msg win)` that uses window `win` to show the message. `html` is the name of a file storing `html` text of the message.
 If `mu4e-views-inject-email-information-into-html` is `t` then `mu4e-views` injects a header into the html code to show some basic information about the email (e.g., sender, attachments, ...). `msg` is a `mu4e` internal message plist. You can use it to extract additional information about the email to be shown. Please refer to the  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) and `mu4e-views` source code to see how this works.
 
-To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. Methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. For example, the browser method does this. Furthermore, if your method does not need `m4ue-views` to generate the message as an html file then use `:view-function-only-msg t`. In this case your function should have the signature `(msg win)`. Any view methods needs to set `:viewfunc`. Views that use windows (`:no-view-window` is not set) need to provide a function `:is-view-window-p` with signature `(window)` that returns `t` if `window` is the window your method uses for showing the email. Optionally, you can also set `:create-view-window` if the window you use for showing messages needs some initial setup before the asynchronous `mu4e` method for viewing an email is called (whose callback will indirectly call your `:viewfunc`). For example, the method below shows the raw html code of messages.
+To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. The allowable keys are:
+
+- `:viewfunc` [**REQUIRED**] - all view methods needs to set `:viewfunc` to a function. This function should take three arguments: `html`, `msg`, and `win` and should show the message `msg` whose content is stored in file `html` in window `win`. View methods that do not use windows (see `:no-view-window`) should have a signature `f(html win)` instead. View methods that set `:view-function-only-msg` to non-nil should have a signature `f(msg win)`.
+- `:is-view-window-p` [**REQUIRED**] - views methods that use windows (`:no-view-window` is not set) need to set this to a function  with a single argument `window` that returns `t` if `window` is the window your method uses for showing the email
+- `:no-view-window` [**OPTIONAL**] - methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. For example, the browser method does this.
+- `:view-function-only-msg` [**OPTIONAL**] - if your method does not need `m4ue-views` to generate the message as an html file then use `:view-function-only-msg t`. In this case your function should have the signature `(msg win)`.
+- `:create-view-window` [**OPTIONAL**] - You can set `:create-view-window` if the window you use for showing messages needs some initial setup before the asynchronous `mu4e` method for viewing an email is called (whose callback will indirectly call your `:viewfunc`). For example, the method below shows the raw html code of messages.
+- `:filter-html` [**OPTIONAL**] - if this key is provided it overrides `mu4e-views-html-filter-external-content` and forces filtering / not filtering of email html content.
+- `:filters` [**OPTIONAL**] - if html is filtered (the method sets `:filter-html t` or `mu4e-views-html-filter-external-content` is non-nil and the method does not set `:filter-html nil`), then use this list of filters instead of the one set in `mu4e-views-html-dom-filter-chain`.
+
+As an example view method consider the usecase of showing the html source of an email.
 
 ~~~elisp
 (defun mu4e-views-view-raw-html (html msg win)

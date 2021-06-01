@@ -1000,7 +1000,7 @@ N."
                        (setq have-view t))
                      (unless (or (eq buf header-buffer) (funcall is-view-p w))
                        (setq other-buf t))))
-          (mu4e-views-debug-log "\t%s, because headers-window?: %s, view-window?: %s other windows present?: %s\nwindows are %s" (if (and have-header have-view (not other-buf)) "YES" "NO") have-header have-view other-buf (window-list))
+          (mu4e-views-debug-log "\t%s, because\n\t\theaders-window?: %s, view-window?: %s other windows present?: %s\n\t\twindows are %s" (if (and have-header have-view (not other-buf)) "YES" "NO") have-header have-view other-buf (window-list))
           (and have-header have-view (not other-buf)))
       ;; return nil if window list has not exactly 2 windows
       (mu4e-views-debug-log "\tdo not have 2 windows, but %s" (length (window-list)))
@@ -1013,8 +1013,7 @@ N."
     (mu4e-views-debug-log "VIEW-WINDOW-P: the selected win %s ..." thewindow)
     (if (mu4e-views-mu4e-header-and-view-windows-p)
         (let ((isview (funcall is-view-p thewindow)))
-          (mu4e-views-debug-log (concat "\t" (if isview "is" "isnot") " the view window.")
-				                isview)
+          (mu4e-views-debug-log"\t%s %s the view window." thewindow (if isview "is" "isnot"))
 	      isview)
       (mu4e-views-debug-log "\twe are not even in correct layout!")
       nil)))
@@ -1167,7 +1166,11 @@ then use this instead of the currently selected view method."
          (filter-html (when filter-pretermined (if (plist-get method :filter-html) t 0)))
          (filters (plist-get method :filters))
          htmlfile)
-    (mu4e-views-debug-log "VIEW MESSAGE INTERNAL \tuse view function: %s\n\tonly-msg: %s\n\tno-window: %s\n\tfilter-predetermined: %s, force-filtering/nofiltering: %s\n\tcustom-filters: %s"
+    (mu4e-views-debug-log "VIEW MESSAGE INTERNAL (%i [%s] FROM: %s SUBJECT: %s)\n\tuse view function: %s\n\tonly-msg: %s\n\tno-window: %s\n\tfilter-predetermined: %s, force-filtering/nofiltering: %s\n\tcustom-filters: %s"
+                          (mu4e-message-field msg :docid)
+                          (mu4e-message-field msg :message-id)
+                          (mu4e-message-field msg :from)
+                          (mu4e-message-field msg :subject)
                           viewfunc
                           only-msg
                           no-window
