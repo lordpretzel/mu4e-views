@@ -919,6 +919,18 @@ filters to apply instead."
   "Apply filter function F to MSG and html DOM and return filtered DOM."
   (funcall f msg dom))
 
+;; define dom-remove-node for emacs 25
+(when (<= emacs-major-version 25)
+  (defun dom-remove-node (dom node)
+	"Remove NODE from DOM."
+	;; If we're removing the top level node, just return nil.
+	(dolist (child (dom-children dom))
+	  (cond
+	   ((eq node child)
+	 	(delq node dom))
+	   ((not (stringp child))
+	 	(dom-remove-node child node))))))
+
 (defun mu4e-views-dom-remove-attr-and-map-children (msg node att f)
   "Remove attribute ATT from NODE apply F to it's children.
 
@@ -1183,6 +1195,7 @@ then use this instead of the currently selected view method."
 	    (mu4e-views-debug-log "\tNo body part for this message")
         (setq txt "")))
 	(setq mu4e-views--current-mu4e-message msg)
+    (setq mu4e~view-message msg)
     (unless only-msg
 	  (setq htmlfile (mu4e-views-mu4e~write-body-and-headers-to-html msg filter-html filters)))
     (if only-msg
@@ -1206,6 +1219,10 @@ then use this instead of the currently selected view method."
     (mu4e-views-debug-log "SWITCH-TO-WINDOW: behavior is %s currently on header? %s"
                           mu4e-views-next-previous-message-behaviour
                           mu4e-views--header-selected)
+    ;; set view message in buffer shown in view window for mu4e methods
+    (with-current-buffer (window-buffer (mu4e-views-get-view-win t))
+      (setq mu4e~view-message mu4e-views--current-mu4e-message))
+    ;; switch to header or view window based on what users wants
     (cl-case mu4e-views-next-previous-message-behaviour
       (stick-to-current-window (if mu4e-views--header-selected
                                    (select-window
