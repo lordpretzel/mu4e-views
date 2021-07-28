@@ -39,8 +39,9 @@
 ;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
 (require 'seq)
 (require 'mu4e)
-(if (version-list-<=  '(1 5 0) (version-to-list mu4e-mu-version))
-    (require 'mu4e-view-old))
+(when (version-list-<  '(1 5) (version-to-list mu4e-mu-version))
+  (require 'mu4e-view-old)
+  (require 'mu4e-utils))
 (require 'ht)
 (require 'xwidgets-reuse)
 (require 'cl-macs)
@@ -89,8 +90,8 @@
                             :no-view-window t))
     ;; open with gnus
     ("gnus" . (:viewfunc mu4e-views-gnus-view-message
-                         :create-view-window mu4e-views-text-create-view-window
-                         :is-view-window-p mu4e-views-text-is-view-window-p
+                         :create-view-window mu4e-views-gnus-create-view-window
+                         :is-view-window-p mu4e-views-gnus-is-view-window-p
                          :view-function-only-msg t))
     ;; show the messages html source code
     ("html-src" . (:viewfunc mu4e-views-html-src-view-message
@@ -311,8 +312,22 @@ object.")
   nil
   "If true than show a lot of log output for debugging.")
 
+(defvar mu4e-views--advice-installed
+  nil
+  "If true then we have already advised mu4e functions.")
+
+
 ;; ********************************************************************************
 ;; FUNCTIONS
+
+;; ********************************************************************************
+;; define function for removing dom attributes on emacsen 27 or less that do not have that
+(when (not (fboundp 'dom-remove-attribute))
+  (defun dom-remove-attribute (node attribute)
+    "Remove ATTRIBUTE from NODE."
+    (setq node (dom-ensure-node node))
+    (when-let ((old (assoc attribute (cadr node))))
+      (setcar (cdr node) (delq old (cadr node))))))
 
 ;; ********************************************************************************
 ;; helper function for debug logging
@@ -523,6 +538,7 @@ passed on to the selected view method."
 
 ;; keep byte compiler quiet. This is function is dynamically defined by mu4e based on the selected viewing method.
 (declare-function mu4e-view-mode "mu4e-view" nil t)
+(declare-function mu4e~view-activate-urls nil nil t)
 
 (defun mu4e-views-text-view-message (msg win)
   "Copy of most of the cost of `mu4e~view-internal' to be used when using this viewing method from `mu4e-views'.  Takes MSG plist and window WIN as input."
@@ -535,33 +551,34 @@ passed on to the selected view method."
          (previouswin (selected-window)))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (if (mu4e-views-mu4e-ver-<= '(1 5))
+        (if (mu4e-views-mu4e-ver-< '(1 5))
+            ;; for versions before 1.5.x
             (progn
-              (mu4e-views-debug-log "IN TEXT VIEW 1.5 selected message is %s" (mu4e-message-field msg :docid))
-              (erase-buffer)
-              (mu4e~delete-all-overlays)
-              (insert (mu4e-view-message-text msg))
-              (goto-char (point-min))
-              (mu4e~fontify-cited)
-              (mu4e~fontify-signature)
-              (mu4e~view-make-urls-clickable)
-              (mu4e~view-show-images-maybe msg)
-              (when (not embedded) (setq mu4e~view-message msg))
-              (mu4e-view-mode)
-              (when embedded (local-set-key "q" 'kill-buffer-and-window)))
-          (mu4e-views-debug-log "IN TEXT VIEW < 1.5 selected message is %s" (mu4e-message-field msg :docid))
-          (when (or embedded (not (mu4e~view-mark-as-read-maybe msg)))
-            (erase-buffer)
-            (mu4e~delete-all-overlays)
-            (insert (mu4e-view-message-text msg))
-            (goto-char (point-min))
-            (mu4e~fontify-cited)
-            (mu4e~fontify-signature)
-            (mu4e~view-make-urls-clickable)
-            (mu4e~view-show-images-maybe msg)
-            (when (not embedded) (setq mu4e~view-message msg))
-            (mu4e-view-mode)
-            (when embedded (local-set-key "q" 'kill-buffer-and-window))))
+              (mu4e-views-debug-log "IN TEXT VIEW < 1.5 selected message is %s" (mu4e-message-field msg :docid))
+              (when (or embedded (not (mu4e~view-mark-as-read-maybe msg)))
+                (erase-buffer)
+                (mu4e~delete-all-overlays)
+                (insert (mu4e-view-message-text msg))
+                (goto-char (point-min))
+                (mu4e~fontify-cited)
+                (mu4e~fontify-signature)
+                (mu4e~view-make-urls-clickable)
+                (mu4e~view-show-images-maybe msg)
+                (when (not embedded) (setq mu4e~view-message msg))
+                (mu4e-view-mode)
+                (when embedded (local-set-key "q" 'kill-buffer-and-window))))
+          (mu4e-views-debug-log "IN TEXT VIEW >= 1.5 selected message is %s" (mu4e-message-field msg :docid))
+          (erase-buffer)
+          (mu4e~delete-all-overlays)
+          (insert (mu4e-view-message-text msg))
+          (goto-char (point-min))
+          (mu4e~fontify-cited)
+          (mu4e~fontify-signature)
+          (mu4e~view-activate-urls)
+          (mu4e~view-show-images-maybe msg)
+          (when (not embedded) (setq mu4e~view-message msg))
+          (mu4e-view-mode)
+          (when embedded (local-set-key "q" 'kill-buffer-and-window)))
         (select-window win)
         (switch-to-buffer buf t t)
         (select-window previouswin)))))
@@ -614,12 +631,35 @@ in WIN."
           (eq buf mu4e~headers-loading-buf)))))
 
 ;; ********************************************************************************
-;; VIEWING METHOD: browser
-;; viewing email in a webbrowser (available as action and as a view method)
+;; VIEWING METHOD: gnus
+;; viewing email using the mu4e build-in view based on gnus article view
+
+
 (defun mu4e-views-gnus-view-message (msg win)
   "View message MSG on window WIN using Gnus article mode."
+  (if (mu4e-views-mu4e-ver-< '(1 5))
+      (mu4e-views-gnus-view-message-before-1.5 msg win)
+    (mu4e-views-gnus-view-message-1.5-or-later msg win)))
+
+(declare-function mu4e~view-render-buffer nil nil)
+
+(defun mu4e-views-gnus-view-message-1.5-or-later (msg win)
+  "View message MSG on window WIN using Gnus article mode for mu4e versions 1.5.x or later."
+  (when (bufferp gnus-article-buffer)
+    (kill-buffer gnus-article-buffer))
+  (with-current-buffer (get-buffer-create gnus-article-buffer)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (insert-file-contents-literally
+       (mu4e-message-field msg :path) nil nil nil t)))
+  (select-window win)
+  (switch-to-buffer gnus-article-buffer t t)
+  (mu4e~view-render-buffer msg))
+
+(defun mu4e-views-gnus-view-message-before-1.5 (msg win)
+  "View message MSG on window WIN using Gnus article mode for mu4e versions before 1.5.x."
   (require 'gnus-art)
-  (let* ((marked-read (if (mu4e-views-mu4e-ver-<= '(1 5))
+  (let* ((marked-read (if (mu4e-views-mu4e-ver-< '(1 5))
                           nil
                         (mu4e~view-mark-as-read-maybe msg)))
          (path (mu4e-message-field msg :path))
@@ -689,6 +729,29 @@ MIME-FUNCTIONS IDENTS."
         (gnus-icalendar-additional-identities idents))
     (gnus-article-prepare-display)))
 
+(defun mu4e-views-gnus-create-view-window (window)
+  "Create the mu4e-view window for the `gnus' method in WINDOW."
+  (select-window window)
+  (if (mu4e-views-mu4e-ver-< '(1 5))
+      (unless (buffer-live-p mu4e~headers-loading-buf)
+        (setq mu4e~headers-loading-buf (get-buffer-create " *mu4e-loading*"))
+        (with-current-buffer mu4e~headers-loading-buf
+          (mu4e-loading-mode)))
+    (unless (buffer-live-p gnus-article-buffer)
+      (with-current-buffer (get-buffer-create gnus-article-buffer)))))
+
+(defun mu4e-views-gnus-is-view-window-p (window)
+  "Check whether WINDOW is the mu4e-view window for the `gnus' method (new standard mu4e methods)."
+  (let ((buf (window-buffer window)))
+    (if (mu4e-views-mu4e-ver-< '(1 5))
+        (or (eq buf mu4e~headers-loading-buf)
+            (eq buf (get-buffer mu4e~view-buffer-name)))
+      (or (eq buf gnus-article-buffer)
+          (eq buf (get-buffer gnus-article-buffer))))))
+
+;; ********************************************************************************
+;; VIEWING METHOD: browser
+;; viewing email in a webbrowser (available as action and as a view method)
 (defun mu4e-views-mu4e-view-in-browser-action (msg)
   "Open email MSG in browser using `browse-url'."
   (interactive)
@@ -1212,6 +1275,12 @@ then use this instead of the currently selected view method."
         ))
     (mu4e-views-switch-to-right-window)))
 
+(defun mu4e-views-mu4e-view (msg)
+  "Used as a replacement for `mu4e-view' to view MSG in mu4e 1.5.x and above."
+  (mu4e-views-debug-log "In advice for 1.5.x mu4e-view function")
+  (mu4e~headers-update-handler msg nil nil)
+  (mu4e~view-old msg))
+
 (defun mu4e-views-switch-to-right-window ()
   "Switch to a different window based on `mu4e-views-next-previous-message-behaviour'."
   (if (plist-get mu4e-views--current-viewing-method :no-view-window)
@@ -1631,7 +1700,11 @@ succeeds, return the new docid.  Otherwise, return nil."
 (defun mu4e-views-unload-function ()
   "Uninstalls the advices on mu4e functions created by mu4e-views."
   (interactive)
+  (mu4e-views-debug-log "Uninstall mu4e advice")
   (mu4e-views-advice-unadvice 'mu4e~view-internal)
+  (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
+      (mu4e-views-advice-unadvice 'mu4e~view-old)
+      (mu4e-views-advice-unadvice 'mu4e-view))
   (mu4e-views-advice-unadvice 'mu4e-headers-view-message)
   (mu4e-views-advice-unadvice 'mu4e~headers-move)
   (mu4e-views-advice-unadvice 'mu4e-select-other-view)
@@ -1639,16 +1712,22 @@ succeeds, return the new docid.  Otherwise, return nil."
   (mu4e-views-advice-unadvice 'mu4e-view-headers-previous)
   (mu4e-views-advice-unadvice 'mu4e~view-gnus)
   (mu4e-views-advice-unadvice 'mu4e-get-view-buffer)
-  (mu4e-views-advice-unadvice 'mu4e~view-prev-or-next-unread))
+  (mu4e-views-advice-unadvice 'mu4e~view-prev-or-next-unread)
+  (setq mu4e-views--advice-installed nil))
 
 (defun mu4e-views-advice-mu4e ()
   "Install the advices on mu4e functions used by mu4e-views to overwrite its functionality."
+  (mu4e-views-debug-log "Install mu4e advice for mu version %s" mu4e-mu-version)
+  ;; in all cases
   (advice-add 'mu4e~view-internal
               :override #'mu4e-views-view-msg-internal)
   ;; only for 1.5 and above
-  (unless (mu4e-views-mu4e-ver-<= '(1 4))
+  (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
     (advice-add 'mu4e~view-old
-                :override #'mu4e-views-view-msg-internal))
+                :override #'mu4e-views-view-msg-internal)
+    ;; for 1.5 and above avoid complaint about old and gnus to being loaded
+    (advice-add 'mu4e-view
+                :override #'mu4e-views-mu4e-view))
   (advice-add 'mu4e-headers-view-message
               :override #'mu4e-views-mu4e-headers-view-message)
   (advice-add 'mu4e~headers-move
@@ -1664,7 +1743,11 @@ succeeds, return the new docid.  Otherwise, return nil."
   (advice-add 'mu4e-get-view-buffer
               :override #'mu4e-views-get-view-buffer)
   (advice-add 'mu4e~view-prev-or-next-unread
-              :override #'mu4e-views-view-prev-or-next-unread))
+              :override #'mu4e-views-view-prev-or-next-unread)
+  (setq mu4e-views--advice-installed t))
+
+(unless mu4e-views--advice-installed
+  (mu4e-views-advice-mu4e))
 
 (provide 'mu4e-views)
 ;;; mu4e-views.el ends here
