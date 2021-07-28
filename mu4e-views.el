@@ -49,6 +49,7 @@
 (require 'thingatpt)
 (require 'esxml)
 (require 'dom)
+(require 'gnus-art)
 
 ;; ********************************************************************************
 ;; macros
@@ -641,7 +642,8 @@ in WIN."
       (mu4e-views-gnus-view-message-before-1.5 msg win)
     (mu4e-views-gnus-view-message-1.5-or-later msg win)))
 
-(declare-function mu4e~view-render-buffer nil nil)
+(declare-function mu4e~view-render-buffer nil t)
+(defvar gnus-article-buffer)
 
 (defun mu4e-views-gnus-view-message-1.5-or-later (msg win)
   "View message MSG on window WIN using Gnus article mode for mu4e versions 1.5.x or later."
@@ -1274,6 +1276,8 @@ then use this instead of the currently selected view method."
         ;;(mu4e-views-headers-redraw-get-view-window)
         ))
     (mu4e-views-switch-to-right-window)))
+
+(declare-function mu4e~view-old nil t nil)
 
 (defun mu4e-views-mu4e-view (msg)
   "Used as a replacement for `mu4e-view' to view MSG in mu4e 1.5.x and above."
