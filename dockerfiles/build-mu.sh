@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSIONS="1.3.10 1.4.13 master"
+VERSIONS="1.3.10 1.4.15 1.6.0 master"
 cd /mu-src
 
 check_exit()
@@ -50,6 +50,8 @@ done
 # 1.4.11
 # 1.4.12
 # 1.4.13
+# 1.4.14          Stable release 1.4.14
+# 1.4.15
 # 1.4.2
 # 1.4.3
 # 1.4.4
@@ -58,6 +60,7 @@ done
 # 1.4.7
 # 1.4.8
 # 1.4.9
+# 1.6.0
 # list
 # v0.6
 # v0.6-beta

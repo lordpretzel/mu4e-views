@@ -8,10 +8,11 @@
 ;;(require 'cl-mac)
 (defvar custom/packages
   '(ht
+    esxml
     xwidgets-reuse)
   "Default packages")
 
-(setq mu4e-views-debug t)
+(setq mu4e-views--debug t)
 
 (defun custom/packages-installed-p ()
   (let ((in t))
