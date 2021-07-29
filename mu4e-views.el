@@ -317,6 +317,9 @@ object.")
   nil
   "If true then we have already advised mu4e functions.")
 
+(defconst mu4e-views-html-src-view-buffer-name
+  "*mu4e-views-html-src*"
+  "Name for the view buffer showing the html source of an email.")
 
 ;; ********************************************************************************
 ;; FUNCTIONS
@@ -487,17 +490,22 @@ https://github.com/abo-abo/swiper")))
 (defun mu4e-views-html-src-view-message (html msg win)
   "View html source code HTML of message MSG in window WIN."
   (ignore msg)
+  (setq mu4e~view-message msg)
+  (when (get-buffer mu4e-views-html-src-view-buffer-name)
+    (kill-buffer mu4e-views-html-src-view-buffer-name))
   (let ((buf (find-file-noselect html)))
     (with-current-buffer buf
       (read-only-mode)
       (select-window win)
-      (switch-to-buffer buf t t))))
+      (switch-to-buffer buf t t)
+      (rename-buffer mu4e-views-html-src-view-buffer-name)
+      (mu4e-views-view-actions-mode 1))))
 
 (defun mu4e-views-html-src-is-view-p (win)
   "Return non-nil if window WIN is showing the html source of an email."
   (let ((winbuf (window-buffer win)))
     (with-current-buffer winbuf
-      (eq major-mode 'html-mode))))
+      (string= mu4e-views-html-src-view-buffer-name (buffer-name winbuf)))))
 
 ;; ********************************************************************************
 ;; VIEWING METHOD: dispatcher
