@@ -41,6 +41,7 @@
 (require 'mu4e)
 (when (version-list-<  '(1 5) (version-to-list mu4e-mu-version))
   (require 'mu4e-view-old)
+  (require 'mu4e-view-gnus)
   (require 'mu4e-utils))
 (require 'ht)
 (require 'xwidgets-reuse)
@@ -552,8 +553,9 @@ passed on to the selected view method."
 (defun mu4e-views-text-view-message (msg win)
   "Copy of most of the cost of `mu4e~view-internal' to be used when using this viewing method from `mu4e-views'.  Takes MSG plist and window WIN as input."
   (let* ((embedded ;; is it as an embedded msg (ie. message/rfc822 att)?
-          (when (gethash (mu4e-message-field msg :path)
-                         mu4e~path-parent-docid-map) t))
+          (when (mu4e-views-mu4e-ver-< '(1 5))
+            (when (gethash (mu4e-message-field msg :path)
+                           mu4e~path-parent-docid-map) t)))
          (buf (if embedded
                   (mu4e~view-embedded-winbuf)
                 (get-buffer-create mu4e~view-buffer-name)))
@@ -725,6 +727,8 @@ in WIN."
                     (setq mu4e~gnus-article-mime-handles nil))))
       (read-only-mode))
     (select-window previouswin)))
+
+(defvar gnus-icalendar-additional-identities)
 
 (defun mu4e-views-gnus-prepare-display (mymax-specpdl-size mime-functions idents)
   "Use dynamic scope to override gnus settings.
@@ -1285,13 +1289,13 @@ then use this instead of the currently selected view method."
         ))
     (mu4e-views-switch-to-right-window)))
 
-(declare-function mu4e~view-old nil t nil)
+(declare-function mu4e~view-gnus nil t nil)
 
 (defun mu4e-views-mu4e-view (msg)
   "Used as a replacement for `mu4e-view' to view MSG in mu4e 1.5.x and above."
   (mu4e-views-debug-log "In advice for 1.5.x mu4e-view function")
   (mu4e~headers-update-handler msg nil nil)
-  (mu4e~view-old msg))
+  (mu4e~view-gnus msg))
 
 (defun mu4e-views-switch-to-right-window ()
   "Switch to a different window based on `mu4e-views-next-previous-message-behaviour'."
