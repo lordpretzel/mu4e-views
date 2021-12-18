@@ -62,6 +62,14 @@
   "Check whether mu4e-version is less then or equal to V."
   (version-list-< (version-to-list mu4e-mu-version) v))
 
+(defun mu4e-views-mu4e-ver-> (v)
+  "Check whether mu4e-version is less then or equal to V."
+  (not (version-list-<= (version-to-list mu4e-mu-version) v)))
+
+(defun mu4e-views-mu4e-ver->= (v)
+  "Check whether mu4e-version is less then or equal to V."
+  (not (version-list-< (version-to-list mu4e-mu-version) v)))
+
 ;; ********************************************************************************
 ;; Customize and defvars
 (defcustom mu4e-views-view-commands
@@ -1208,12 +1216,17 @@ window."
          (docid (or (mu4e-message-field msg :docid)
                     (mu4e-warn "No message at point")))
          (decrypt (mu4e~decrypt-p msg))
+         (mark-as-read (when (mu4e-views-mu4e-ver->= '(1 5 3))
+                         (if (functionp mu4e-view-auto-mark-as-read)
+                             (funcall mu4e-view-auto-mark-as-read msg)
+                           mu4e-view-auto-mark-as-read)))
          (verify  (not (and (boundp 'mu4e-view-use-gnus) mu4e-view-use-gnus))))
     (mu4e-views-debug-log "IN HEADERS VIEW selected message is %s" docid)
     (cond
-     ((mu4e-views-mu4e-ver-<= '(1 3 9)) (mu4e~proc-view docid mu4e-view-show-images decrypt))
      ((mu4e-views-mu4e-ver-< '(0 9 9)) (mu4e~proc-view docid mu4e-view-show-images))
-     (t (mu4e~proc-view docid mu4e-view-show-images decrypt verify)))))
+     ((mu4e-views-mu4e-ver-<= '(1 3 9)) (mu4e~proc-view docid mu4e-view-show-images decrypt))
+     ((mu4e-views-mu4e-ver-<= '(1 5 2)) (mu4e~proc-view docid mu4e-view-show-images decrypt verify))
+     (t (mu4e~proc-view docid mark-as-read decrypt verify)))))
 
 (defun mu4e-views-view-current-msg-with-method (&optional method)
   "Takes `mu4e' message MSG as input and opens it with method METHOD."
@@ -1712,6 +1725,25 @@ succeeds, return the new docid.  Otherwise, return nil."
   (setq mu4e-views-auto-view-selected-message
         (not mu4e-views-auto-view-selected-message)))
 
+;; replacement for mu4e's function in 1.6.0 that removes linebreaks
+(unless (mu4e-views-mu4e-ver-< '(1 5))
+  (defun mu4e-views-mu4e-message-outlook-cleanup (_msg body)
+    "Clean-up MSG's BODY.
+Esp. MS-Outlook-originating message may not advertise the correct
+encoding (e.g. 'iso-8859-1' instead of 'windows-1252'), thus
+giving us these funky chars. here, we either remove them, or
+replace with."
+    (with-temp-buffer
+      (insert body)
+      (goto-char (point-min))
+      (while (re-search-forward "[\015 ]" nil t)
+        (replace-match
+         (cond
+          ((string= (match-string 0) "") "'")
+          ((string= (match-string 0) " ") " ")
+          (t ""))))
+      (buffer-string))))
+
 ;;;###autoload
 (defun mu4e-views-unload-function ()
   "Uninstalls the advices on mu4e functions created by mu4e-views."
@@ -1720,7 +1752,8 @@ succeeds, return the new docid.  Otherwise, return nil."
   (mu4e-views-advice-unadvice 'mu4e~view-internal)
   (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
       (mu4e-views-advice-unadvice 'mu4e~view-old)
-      (mu4e-views-advice-unadvice 'mu4e-view))
+      (mu4e-views-advice-unadvice 'mu4e-view)
+      (mu4e-views-advice-unadvice 'mu4e-message-outlook-cleanup))
   (mu4e-views-advice-unadvice 'mu4e-headers-view-message)
   (mu4e-views-advice-unadvice 'mu4e~headers-move)
   (mu4e-views-advice-unadvice 'mu4e-select-other-view)
@@ -1743,7 +1776,9 @@ succeeds, return the new docid.  Otherwise, return nil."
                 :override #'mu4e-views-view-msg-internal)
     ;; for 1.5 and above avoid complaint about old and gnus to being loaded
     (advice-add 'mu4e-view
-                :override #'mu4e-views-mu4e-view))
+                :override #'mu4e-views-mu4e-view)
+    (advice-add 'mu4e-message-outlook-cleanup
+                :override #'mu4e-views-mu4e-message-outlook-cleanup))
   (advice-add 'mu4e-headers-view-message
               :override #'mu4e-views-mu4e-headers-view-message)
   (advice-add 'mu4e~headers-move
