@@ -470,6 +470,9 @@ https://github.com/abo-abo/swiper")))
   "Return either currently active one-time viewing method or the currently selected viewing method."
   (or mu4e-views--one-time-viewing-method mu4e-views--current-viewing-method))
 
+(defun mu4e-views--get-current-viewing-method-name ()
+  (car (rassoc (mu4e-views-get-current-viewing-method) mu4e-views-view-commands)))
+
 ;; ********************************************************************************
 ;; VIEWING METHOD: html
 ;; functions for viewing a mu4e message in xwidgets
@@ -1633,6 +1636,38 @@ succeeds, return the new docid.  Otherwise, return nil."
     (with-current-buffer (mu4e-get-headers-buffer)
       (mu4e-headers-view-message))))
 
+(defun mu4e-views--xwidget-callback-if-is-at-bottom (callback)
+  (xwidget-webkit-execute-script
+   (xwidget-webkit-current-session)
+   "(function() {
+        if((window.innerHeight + window.scrollY) >= document.body.offsetHeight) {
+          return \"TRUE\"
+        }
+        else {
+          return \"FALSE\"
+        }
+      })()"
+     callback))
+
+(defun mu4e-views-scroll-up-or-next ()
+  "Wrapper around mu4e method for scrolling down and jumping to next mail if we reached the end of the current mail. For xwidgets we have to use javascript to detect when we reached the end."
+  (interactive)
+  (let ((is-xwidget (pcase (mu4e-views--get-current-viewing-method-name)
+                      ("html" t)
+                      ("html-block" t)
+                      ("html-nonblock" t)
+                      (_ nil))))
+    ;; in xwidgets window using xwidgets scroll method and jump to next message if we reached end
+    (if is-xwidget
+      (mu4e-views--xwidget-callback-if-is-at-bottom
+       (lambda (res) (progn (message "it is %s" res)
+                            (if (string-equal res "TRUE")
+                                (when mu4e-view-scroll-to-next
+                                  (message "move to next!")
+                                  (mu4e-view-headers-next))
+                              (xwidget-webkit-scroll-up)))))
+      (scroll-up))))
+
 ;; ********************************************************************************
 ;; Minor mode that bounds keys to access mu4e email actions like saving attachments.
 ;; create a custom keymap for mu4e-views-view-actions-mode-map
@@ -1684,6 +1719,7 @@ succeeds, return the new docid.  Otherwise, return nil."
     (define-key km (kbd "t") #'mu4e-view-mark-subthread)
     (define-key km (kbd "v") #'mu4e-view-verify-msg-popup)
     (define-key km (kbd "x") #'mu4e-view-marked-execute)
+    (define-key km (kbd "SPC") #'mu4e-views-scroll-up-or-next)
     km)
   "The keymap for `Mu4e-views-view-actions-mode'.")
 
