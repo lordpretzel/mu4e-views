@@ -109,7 +109,8 @@
     ;; dispatch to other view methods choosen based on predicates
     ("dispatcher" .
      (:viewfunc mu4e-views-dispatcher-view-message
-                :is-view-window-p mu4e-views-dispatcher-is-view-window-p)))
+                :is-view-window-p mu4e-views-dispatcher-is-view-window-p
+                :view-function-only-msg t)))
   "A list of commands for viewing messages in mu4e.
 
 Currently supported are:
@@ -521,7 +522,7 @@ https://github.com/abo-abo/swiper")))
 
 ;; ********************************************************************************
 ;; VIEWING METHOD: dispatcher
-(defun mu4e-views-dispatcher-view-message (html msg win)
+(defun mu4e-views-dispatcher-view-message (msg win) ;;CHECK have removed html
   "Dispatches to another viewing method.
 This is based the map from predicate to view method in
 `mu4e-views-dispatcher-predicate-view-map'.  Parameters HTML, MSG and WIN are
@@ -534,13 +535,18 @@ passed on to the selected view method."
                 mu4e-views-view-commands)))
          (viewfun (plist-get viewmethod :viewfunc))
          (createwinfun (plist-get viewmethod :create-view-window))
-         (onlymsg (plist-get viewmethod :view-function-only-msg)))
+         (only-msg (plist-get viewmethod :view-function-only-msg))
+         (filter-pretermined (plist-member viewmethod :filter-html))
+         (filter-html (when filter-pretermined (if (plist-get viewmethod :filter-html) t 0)))
+         (filters (plist-get viewmethod :filters)))
     (mu4e-views-debug-log "viewmethod <%s> for mssage %s"
                           viewmethod
                           (mu4e-message-field msg  :docid))
+    (unless only-msg
+	  (setq html (mu4e-views-mu4e~write-body-and-headers-to-html msg filter-html filters)))
     (when createwinfun
       (funcall createwinfun win))
-    (if onlymsg
+    (if only-msg
         (funcall viewfun msg win)
       (funcall viewfun html msg win))))
 
@@ -1286,7 +1292,7 @@ then use this instead of the currently selected view method."
       ;; if there is a no content still show message for its metadata (e.g., only attachments)
 	  (unless (or html txt)
 	    (mu4e-views-debug-log "\tNo body part for this message")
-        (setq txt "")))
+        (setq txt "")));;FIXME what is the purpose of this, this does not do anything, need to deal in writing to HTML!
 	(setq mu4e-views--current-mu4e-message msg)
     (setq mu4e~view-message msg)
     (unless only-msg
