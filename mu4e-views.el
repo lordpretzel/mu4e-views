@@ -542,6 +542,8 @@ passed on to the selected view method."
     (mu4e-views-debug-log "viewmethod <%s> for mssage %s"
                           viewmethod
                           (mu4e-message-field msg  :docid))
+    ;; store view method as one time method for reference of other functions
+    (setq mu4e-views--one-time-viewing-method viewmethod)
     (unless only-msg
 	  (setq html (mu4e-views-mu4e~write-body-and-headers-to-html msg filter-html filters)))
     (when createwinfun
@@ -1662,17 +1664,23 @@ succeeds, return the new docid.  Otherwise, return nil."
                       ("html" t)
                       ("html-block" t)
                       ("html-nonblock" t)
+                      (_ nil)))
+        (is-mu4e-view (pcase (mu4e-views--get-current-viewing-method-name)
+                      ("text" t)
+                      ("gnus" t)
                       (_ nil))))
     ;; in xwidgets window using xwidgets scroll method and jump to next message if we reached end
-    (if is-xwidget
+    (cond
+     (is-xwidget
       (mu4e-views--xwidget-callback-if-is-at-bottom
-       (lambda (res) (progn (message "it is %s" res)
-                            (if (string-equal res "TRUE")
-                                (when mu4e-view-scroll-to-next
-                                  (message "move to next!")
-                                  (mu4e-view-headers-next))
-                              (xwidget-webkit-scroll-up)))))
-      (scroll-up))))
+       (lambda (res) (if (string-equal res "TRUE")
+                         (when mu4e-view-scroll-to-next
+                           (mu4e-view-headers-next))
+                       (xwidget-webkit-scroll-up)))))
+     (is-mu4e-view
+       (mu4e-view-scroll-up-or-next))
+     (t
+       (scroll-up)))))
 
 ;; ********************************************************************************
 ;; Minor mode that bounds keys to access mu4e email actions like saving attachments.
