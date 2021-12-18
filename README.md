@@ -1,7 +1,5 @@
 [![License: GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](http://www.gnu.org/licenses/gpl-3.0.txt) <!-- [![Build Status](https://secure.travis-ci.org/lordpretzel/mu4e-views.png)](http://travis-ci.org/lordpretzel/mu4e-views) --> <!-- [![GitHub release](https://img.shields.io/github/release/lordpretzel/mu4e-views.svg?maxAge=86400)](https://github.com/lordpretzel/mu4e-views/releases) --> [![MELPA Stable](http://stable.melpa.org/packages/mu4e-views-badge.svg)](http://stable.melpa.org/#/mu4e-views) [![MELPA](http://melpa.org/packages/mu4e-views-badge.svg)](http://melpa.org/#/mu4e-views)
 
-
-
 # mu4e-views
 
  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) is great, but viewing of html emails is suboptimal.  This packages enables the user to choose how to view emails.  It's main use case is to view html emails using an xwidgets window, but custom viewing methods are also supported.
@@ -133,7 +131,7 @@ Since showing remote content is a common use case, there is convenience function
 
 ### Settings
 
-- `mu4e-views-html-filter-external-content` - apply filters to remove external content from emails **(the default filters is based on my naive understanding and should not be trusted)**.
+- `mu4e-views-html-filter-external-content` - apply filters to remove external content from emails **(the default filters are based on my naive understanding and should not be trusted)**.
 - `mu4e-views-html-dom-filter-chain` - list of filters to use to remove external content from emails
 - `mu4e-views-completion-method` - framework used for completion.
 - `mu4e-views-inject-email-information-into-html` - if `t`, then create a header shown on top of the html message with useful information from the email. The header uses CSS styles defined in `mu4e-views-mu4e-html-email-header-style`.
@@ -177,18 +175,18 @@ To use your keyboard to click on links in an email shown in `xwidgets`, you can 
 
 - **Note**: filtering is only available when emacs is build with `libxml` support, because it uses `libxml-parse-html-region` to translate html into `dom` model.
 
-You can customize `mu4e-views-html-dom-filter-chain` to define a list of functions that are applied in sequence to filter the email messages HTML dom. A filter function `f` should take as input ta message plist `msg` a dom node `dom` and should return the filters `dom`. To recursively apply `f` to the children of a node, your function `f` needs to explicitly call `(mu4e-views-apply-dom-filter-to-children msg node f)`. While inconvenient this is necessary so that your function can change the DOM structure (e.g., remove a subtree). A good starting point is to have a look at the implementation of `mu4e-views-default-dom-filter`.
+You can customize `mu4e-views-html-dom-filter-chain` to define a list of functions that are applied in sequence to filter the email message's HTML dom. A filter function `f` should take as input ta message plist `msg` a dom node `dom` and should return the filtered DOM at node `dom`. To recursively apply `f` to the children of a node, your function `f` needs to explicitly call `(mu4e-views-apply-dom-filter-to-children msg node f)`. While inconvenient this is necessary so that your function can change the DOM structure (e.g., remove a subtree). A good starting point is to have a look at the implementation of `mu4e-views-default-dom-filter`.
 
 ### Dispatcher view method
 
-If you do not want to implement a full view method yourself, you can let `mu4e-views` dispatch to a view method based on what email you are looking at. You need to customize `mu4e-views-dispatcher-predicate-view-map` which is an alist of `(predicate . viewmethod-name)` pairs. Each of these predicated is a function that takes as input a message plist (`mu4e`'s internal representation of a method). The dispatcher view method applies the predicates in sequence and selects the view method for the first predicate that evaluates to non-nil. For example, this is the default setting for `mu4e-views-dispatcher-predicate-view-map`:
+If you do not want to implement a full view method yourself, you can let `mu4e-views` dispatch to a view method based on what email you are looking at. You need to customize `mu4e-views-dispatcher-predicate-view-map` which is an alist of `(predicate . viewmethod-name)` pairs. Each of these predicates is a function that takes as input a message plist (`mu4e`'s internal representation of a message). The dispatcher view method applies the predicates in sequence and selects the view method for the first predicate that evaluates to non-nil. For example, this is the default setting for `mu4e-views-dispatcher-predicate-view-map`:
 
 ```elisp
 `((,(lambda (msg) (mu4e-message-field msg :body-html)) . "html")
   (,(lambda (msg) (ignore msg) t) . "text")
 ```
 
-If you use this setting, then emails with html content are viewed using xwidgets (the `"html"` view method) and all other emails are viewed using `mu4e`'s default view (called `"text"` in `mu4e-views`). As another example, consider the use case of blocking remote content from emails unless the sender is in a whitelist (this overrides the `mu4e-views-html-filter-external-content` setting by using view methods `"html-nonblock"` and `"html-block"`). Note that this would require you to setup the `email-whitelist` variable yourself.
+If you use this setting, then emails with html content are viewed using xwidgets (the `"html"` view method) and all other emails are viewed using `mu4e`'s default view (called `"text"` in `mu4e-views`). As another example, consider the usecase of blocking remote content from emails unless the sender is in a whitelist (this overrides the `mu4e-views-html-filter-external-content` setting by using view methods `"html-nonblock"` and `"html-block"`). Note that this would require you to setup the `email-whitelist` variable yourself.
 
 ```elisp
 `((,(lambda (msg) (-contains-p email-whitelist (cdr (mu4e-message-field msg :from))))
@@ -198,12 +196,12 @@ If you use this setting, then emails with html content are viewed using xwidgets
 
 ### Define custom views
 
-To define a new view, you need to write a function `my-view-func(html msg win)` that uses window `win` to show the message. `html` is the name of a file storing `html` text of the message.
+To define a new view, you need to write a function `(my-view-func html msg win)` that uses window `win` to show the message. `html` is the name of a file storing the `html` content of the message.
 If `mu4e-views-inject-email-information-into-html` is `t` then `mu4e-views` injects a header into the html code to show some basic information about the email (e.g., sender, attachments, ...). `msg` is a `mu4e` internal message plist. You can use it to extract additional information about the email to be shown. Please refer to the  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) and `mu4e-views` source code to see how this works.
 
-To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. The allowable keys are:
+To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-commands` giving it a user-facing name. The format is `(cons name plist)`. The supported keys for `plist` are:
 
-- `:viewfunc` [**REQUIRED**] - all view methods needs to set `:viewfunc` to a function. This function should take three arguments: `html`, `msg`, and `win` and should show the message `msg` whose content is stored in file `html` in window `win`. View methods that do not use windows (see `:no-view-window`) should have a signature `f(html win)` instead. View methods that set `:view-function-only-msg` to non-nil should have a signature `f(msg win)`.
+- `:viewfunc` [**REQUIRED**] - all view methods needs to set `:viewfunc` to a function. This function should take three arguments: `html`, `msg`, and `win` and should show the message `msg` whose content is stored in file `html` in window `win`. View methods that do not use windows (see `:no-view-window`) should have a signature `(html win)` instead. View methods that set `:view-function-only-msg` to non-nil should have a signature `(msg win)`.
 - `:is-view-window-p` [**REQUIRED**] - views methods that use windows (`:no-view-window` is not set) need to set this to a function  with a single argument `window` that returns `t` if `window` is the window your method uses for showing the email
 - `:no-view-window` [**OPTIONAL**] - methods that do not show the email in emacs should set `:no-view-window t` which instructs `mu4e-views` to not create a window for viewing the email. For example, the browser method does this.
 - `:view-function-only-msg` [**OPTIONAL**] - if your method does not need `m4ue-views` to generate the message as an html file then use `:view-function-only-msg t`. In this case your function should have the signature `(msg win)`.
@@ -211,7 +209,7 @@ To make `mu4e-views` aware of your new view method add it to `mu4e-views-view-co
 - `:filter-html` [**OPTIONAL**] - if this key is provided it overrides `mu4e-views-html-filter-external-content` and forces filtering / not filtering of email html content.
 - `:filters` [**OPTIONAL**] - if html is filtered (the method sets `:filter-html t` or `mu4e-views-html-filter-external-content` is non-nil and the method does not set `:filter-html nil`), then use this list of filters instead of the one set in `mu4e-views-html-dom-filter-chain`.
 
-As an example view method consider the usecase of showing the html source of an email.
+As an example view method consider the usecase of showing the html source of an email:
 
 ~~~elisp
 (defun mu4e-views-view-raw-html (html msg win)
@@ -277,5 +275,5 @@ The images include scripts to start emacs with a particular mu version, e.g., `/
  A typical use case is to start a container with your local development version of mu4e-views
  E.g., from your local mu4e-views git repo:
 
- To build the docker image copy some valid Maildir to ./Maildir and run "docker build -t mu4e-views-test ."
- If you need to test with a different version, then add it to VERSIONS="1.3.10 1.4.13 master" in
+ To build the docker image copy some valid Maildir to `./Maildir` and run `docker build -t mu4e-views-test .`
+ If you need to test with a different version, then add it to `VERSIONS="1.3.10 1.4.13 master` in
