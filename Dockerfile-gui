@@ -28,6 +28,8 @@ RUN apt-get update && apt-get -y --no-install-recommends install \
     texinfo                          \
     libgtk-3-dev                     \
     libwebkit2gtk-4.0-dev            \
+    meson                            \
+    ninja-build                      \
 	&& rm -rf /var/lib/apt/lists/*
 ########################################
 # get mu src
@@ -50,7 +52,9 @@ RUN find /mu4e-views -name \*.elc -execdir rm {} \;
 ########################################
 # Make sure emacs packages we need are installed
 ########################################
-RUN MUVER=master emacs --batch -l /mu4e-views/testconfig/test-file.el
+COPY ./dockerfiles/network-security.data /root/.emacs.d/network-security.data
+COPY ./dockerfiles/gnupg /root/.emacs.d/elpa/gnupg
+#RUN MUVER=1.6.4 emacs --batch -l /mu4e-views/testconfig/test-file.el
 ########################################
 # Set workdir
 ########################################

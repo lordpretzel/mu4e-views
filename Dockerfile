@@ -29,7 +29,9 @@ RUN apt-get update && apt-get -y --no-install-recommends install \
     pkg-config                       \
     g++                              \
     isync                            \
-	&& rm -rf /var/lib/apt/lists/*
+    meson                            \
+    ninja-build                      \
+    && rm -rf /var/lib/apt/lists/*
 ########################################
 # Copy build script and build mu versions
 ########################################
@@ -43,5 +45,5 @@ RUN find /mu4e-views -name \*.elc -execdir rm {} \;
 ########################################
 # Make sure emacs packages we need are installed
 ########################################
-RUN MUVER=master emacs --batch -l /mu4e-views/testconfig/test-file.el
+RUN MUVER=1.6.4 emacs --batch -l /mu4e-views/testconfig/test-file.el
 WORKDIR /

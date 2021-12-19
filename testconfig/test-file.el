@@ -1,6 +1,8 @@
 ;; This buffer is for text that is not saved, and for Lisp evaluation.
 ;; To create a file, visit it with C-x C-f and enter text in its buffer.
 
+(custom-set-variables '(gnutls-algorithm-priority "NORMAL:-VERS-TLS1.3") )
+
 (require 'package)
 (package-initialize)
 
@@ -23,11 +25,10 @@
 
 (when (not (custom/packages-installed-p))
   (setq package-archives '(("melpa" . "https://melpa.org/packages/")
-                           ("gnu" . "http://elpa.gnu.org/packages/")
-			   ("org" . "http://orgmode.org/elpa/")))
-  (when (not package-archive-contents)
-    (message "%s" "Refreshing package database...")
-    (package-refresh-contents))
+                           ("gnu" . "https://elpa.gnu.org/packages/")
+                           ("nongnu" . "https://elpa.nongnu.org/nongnu/")))
+  (message "%s" "Refreshing package database...")
+  (package-refresh-contents)
   (dolist (pkg custom/packages)
     (when (not (package-installed-p pkg))
     (package-install pkg))))

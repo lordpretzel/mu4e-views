@@ -116,10 +116,13 @@
 Currently supported are:
 
 - \"text\" - the standard `mu4e' text email view
-- \"html\" - view email as html in xwidgets
+- \"html\" - view email as HTML in xwidgets
+- \"html-block\" - same as html but always block remote HTML content
+- \"html-nonblock\" - same as html but never block remote HTML content
 - \"pdf\" - view email as pdf with `mu4e-views-html-to-pdf-command'
 - \"browser\" - view email as html in browser using `browse-url'
 - \"gnus\" - use mu4e's build-in gnus article view
+- \"html-src\" - show html source code of message
 - \"dispatcher\" - dynamically chooses method per email
 
 A viewing command ic a cons of a string (the methods name as
