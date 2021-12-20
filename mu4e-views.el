@@ -349,7 +349,9 @@ object.")
 ;; ********************************************************************************
 ;; helper function for debug logging
 (defmacro mu4e-views-debug-log (format-string &rest args)
-  "Use message with FORMAT-STRING and ARGS, but only when mu4e-views--debug is true."
+  "Call message with FORMAT-STRING and ARGS.
+
+Only writes messages when `mu4e-views--debug' is true."
   `(when mu4e-views--debug
      (message ,format-string ,@args)))
 
@@ -471,7 +473,10 @@ https://github.com/abo-abo/swiper")))
       (mu4e-views-advice-mu4e))))
 
 (defun mu4e-views-get-current-viewing-method ()
-  "Return either currently active one-time viewing method or the currently selected viewing method."
+  "Return either currently active viewing method.
+
+This is either the current one-time viewing method or the
+currently selected viewing method."
   (or mu4e-views--one-time-viewing-method mu4e-views--current-viewing-method))
 
 (defun mu4e-views--get-current-viewing-method-name ()
@@ -541,7 +546,8 @@ passed on to the selected view method."
          (only-msg (plist-get viewmethod :view-function-only-msg))
          (filter-pretermined (plist-member viewmethod :filter-html))
          (filter-html (when filter-pretermined (if (plist-get viewmethod :filter-html) t 0)))
-         (filters (plist-get viewmethod :filters)))
+         (filters (plist-get viewmethod :filters))
+         html)
     (mu4e-views-debug-log "viewmethod <%s> for mssage %s"
                           viewmethod
                           (mu4e-message-field msg  :docid))
@@ -556,7 +562,7 @@ passed on to the selected view method."
       (funcall viewfun html msg win))))
 
 (defun mu4e-views-dispatcher-is-view-window-p (win)
-  "Check whether any of the view methods we are dispatching too recognizes that window WIN as a view window."
+  "Check whether any dispatched to viewing methods recognizes WIN as its own."
   (let ((viewmethods (mapcar (lambda (it) (thread-first it
                                             (cdr)
                                             (assoc mu4e-views-view-commands)
@@ -573,7 +579,9 @@ passed on to the selected view method."
 (declare-function mu4e~view-activate-urls nil nil t)
 
 (defun mu4e-views-text-view-message (msg win)
-  "Copy of most of the cost of `mu4e~view-internal' to be used when using this viewing method from `mu4e-views'.  Takes MSG plist and window WIN as input."
+  "Copy of most of `mu4e~view-internal' for using this method from `mu4e-views'.
+
+Takes MSG plist and window WIN as input."
   (let* ((embedded ;; is it as an embedded msg (ie. message/rfc822 att)?
           (when (mu4e-views-mu4e-ver-< '(1 5))
             (when (gethash (mu4e-message-field msg :path)
@@ -625,7 +633,9 @@ passed on to the selected view method."
       (mu4e-loading-mode))))
 
 (defun mu4e-views-text-is-view-window-p (window)
-  "Check whether WINDOW is the mu4e-view window for the `text' or `gnus' (standard mu4e method)."
+  "Check whether WINDOW is the mu4e-view window.
+
+This window is used by the `text' or `gnus' (standard mu4e methods)."
   (let ((buf (window-buffer window)))
     (or (eq buf mu4e~headers-loading-buf)
         (eq buf (get-buffer mu4e~view-buffer-name)))))
@@ -678,7 +688,9 @@ in WIN."
 (defvar gnus-article-buffer)
 
 (defun mu4e-views-gnus-view-message-1.5-or-later (msg win)
-  "View message MSG on window WIN using Gnus article mode for mu4e versions 1.5.x or later."
+  "View message MSG on window WIN using Gnus article.
+
+This function is for mu4e versions 1.5.x or later."
   (when (bufferp gnus-article-buffer)
     (kill-buffer gnus-article-buffer))
   (with-current-buffer (get-buffer-create gnus-article-buffer)
@@ -691,7 +703,9 @@ in WIN."
   (mu4e~view-render-buffer msg))
 
 (defun mu4e-views-gnus-view-message-before-1.5 (msg win)
-  "View message MSG on window WIN using Gnus article mode for mu4e versions before 1.5.x."
+  "View message MSG on window WIN using Gnus article mode.
+
+This function is for mu4e versions before 1.5.x."
   (require 'gnus-art)
   (let* ((marked-read (if (mu4e-views-mu4e-ver-< '(1 5))
                           nil
@@ -777,7 +791,10 @@ MIME-FUNCTIONS IDENTS."
       (with-current-buffer (get-buffer-create gnus-article-buffer)))))
 
 (defun mu4e-views-gnus-is-view-window-p (window)
-  "Check whether WINDOW is the mu4e-view window for the `gnus' method (new standard mu4e methods)."
+  "Check whether WINDOW is the mu4e-view window.
+
+This is for the `gnus' method (new standard mu4e viewing
+method)."
   (let ((buf (window-buffer window)))
     (if (mu4e-views-mu4e-ver-< '(1 5))
         (or (eq buf mu4e~headers-loading-buf)
@@ -1118,7 +1135,10 @@ N."
       nil)))
 
 (defun mu4e-views-mu4e-view-window-p (&optional window)
-  "Return t if WINDOW is the mu4e-views message window.  If WINDOW is omitted, then check for the current window.  Use `:is-view-window-p' of the current viewing method."
+  "Return t if WINDOW is the mu4e-views message window.
+
+If WINDOW is omitted, then check for the current window. Use
+`:is-view-window-p' of the current viewing method."
   (let ((is-view-p (plist-get (mu4e-views-get-current-viewing-method) :is-view-window-p))
         (thewindow (or window (selected-window))))
     (mu4e-views-debug-log "VIEW-WINDOW-P: the selected win %s ..." thewindow)
@@ -1132,7 +1152,8 @@ N."
 (defun mu4e-views-get-view-win (&optional noerror)
   "Return window to use for `mu4e-views' viewing of emails.
 
-If optional argument NOERROR is t then do not throw an error if the window does not exist."
+If optional argument NOERROR is t then do not throw an error if
+the window does not exist."
   (let (win
         (view-window-p (plist-get (mu4e-views-get-current-viewing-method) :is-view-window-p)))
     (cl-loop for w in (window-list) do
@@ -1198,11 +1219,16 @@ message view (if the current viewing method needs a window)."
         theviewwin))))
 
 (defun mu4e-views-headers-redraw-get-view-buffer ()
-  "Return the view buffer, redrawing the view window if we do not have the correct layout."
+  "Return the view buffer.
+
+We redraw the view window if we do not have the correct layout."
   (window-buffer (mu4e-views-headers-redraw-get-view-window)))
 
 (defun mu4e-views-select-other-view ()
-  "When the headers view is selected, then select the message view (if that has a live window), and vice versa."
+  "Switches between headers and view window.
+
+That is, if the headers view is selected, then select the message
+view (if that has a live window), and vice versa."
   (interactive)
   (let* ((other-buf
           (cond
@@ -1325,7 +1351,10 @@ then use this instead of the currently selected view method."
   (mu4e~view-gnus msg))
 
 (defun mu4e-views-switch-to-right-window ()
-  "Switch to a different window based on `mu4e-views-next-previous-message-behaviour'."
+  "Switch to a different window.
+
+The window to switch to is determined based on
+`mu4e-views-next-previous-message-behaviour'."
   (if (plist-get mu4e-views--current-viewing-method :no-view-window)
       (mu4e-views-debug-log "SWITCH-TO-WINDOW: method without view window, do not attempt to switch.")
     (mu4e-views-debug-log "SWITCH-TO-WINDOW: behavior is %s currently on header? %s"
@@ -1648,6 +1677,10 @@ succeeds, return the new docid.  Otherwise, return nil."
       (mu4e-headers-view-message))))
 
 (defun mu4e-views--xwidget-callback-if-is-at-bottom (callback)
+  "Runs javascript code in xwidgets webkit buffer to determine
+whether we are currently at the end of the currently shown
+email (html document). The result of this test if passed to
+function CALLBACK."
   (xwidget-webkit-execute-script
    (xwidget-webkit-current-session)
    "(function() {
@@ -1661,7 +1694,11 @@ succeeds, return the new docid.  Otherwise, return nil."
      callback))
 
 (defun mu4e-views-scroll-up-or-next ()
-  "Wrapper around mu4e method for scrolling down and jumping to next mail if we reached the end of the current mail. For xwidgets we have to use javascript to detect when we reached the end."
+  "Wrapper around mu4e method for scrolling down and jumping to next mail.
+
+ This method scrolls down or if we reached the end of the email
+ moves to the next email. For xwidgets we have to use javascript
+ to detect when we reached the end."
   (interactive)
   (let ((is-xwidget (pcase (mu4e-views--get-current-viewing-method-name)
                       ("html" t)
@@ -1818,7 +1855,7 @@ replace with."
   (setq mu4e-views--advice-installed nil))
 
 (defun mu4e-views-advice-mu4e ()
-  "Install the advices on mu4e functions used by mu4e-views to overwrite its functionality."
+  "Advice mu4e functions used by mu4e-views to overwrite its functionality."
   (mu4e-views-debug-log "Install mu4e advice for mu version %s" mu4e-mu-version)
   ;; in all cases
   (advice-add 'mu4e~view-internal
