@@ -98,6 +98,10 @@
     ;; open with browser
 	("browser" . (:viewfunc mu4e-views-view-in-browser
                             :no-view-window t))
+    ;; open with browser do not block remote content
+	("browser-nonblock" . (:viewfunc mu4e-views-view-in-browser
+                                     :no-view-window t
+                                     :filter-html nil))
     ;; open with gnus
     ("gnus" . (:viewfunc mu4e-views-gnus-view-message
                          :create-view-window mu4e-views-gnus-create-view-window
