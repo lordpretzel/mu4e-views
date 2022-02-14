@@ -1,0 +1,15 @@
+#+TITLE: mu4e-views Updates
+
+This file provides an overview of what is new in each =mu4e-views= version. Since I only started keeping track after version 0.5, this is incomplete.
+
+* Version =0.6= (development version)
+- supports mu version 1.5.x and 1.6.x
+- new view methods:
+  - view emails in browser with filtering
+  - view email as pdf (relies on external tool such as =html-pdf=)
+- one-time switching of viewing method to temporarily view the current message using a different view method without changing the viewing method (the next email to be opened will be shown using the standard viewing method selected by the user)
+-  dispatcher view method allows to let =mu4e-views= select an appropriate view method for each email based on a set of rules, e.g., show non-html emails using the build-in mu4e view method or filter out remote content for all emails except for senders from a whitelist.
+* Version =0.5=
+- make logging toggable
+- support older mu4e versions
+* Version =0.1= to =0.4=
