@@ -962,7 +962,7 @@ determine whether to filter or not."
 	  (with-temp-buffer
 		(setq before-save-hook nil)
 		(setq after-save-hook nil)
-		(insert (concat "<head><meta charset=\"UTF-8\">" mu4e-views-mu4e-html-email-header-style  "</head>\n"))
+		(insert (concat "<html><head><meta charset=\"UTF-8\">" mu4e-views-mu4e-html-email-header-style  "</head>\n"))
         ;; insert mu4e-views info header
         (when mu4e-views-inject-email-information-into-html
           (insert (funcall mu4e-views-mu4e-email-headers-as-html-function msg)))
