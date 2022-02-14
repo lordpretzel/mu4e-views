@@ -232,6 +232,18 @@ As an example view method consider the usecase of showing the html source of an 
 
 `mu4e-views` provides several helper functions for typical operations with emails such as storing attachments as described above. These functions can be used in custom views too.
 
+### Exporting email
+`mu4e-views` now has some basic functionality for exporting emails. Out of the box, export to pdf and html files is supported. This functionality is provided through a dispatcher function `mu4e-views-export-msg-action`. Per default this action is not added to the header and view actions. To bind this function as an action under key `e`, add the following to your configuration:
+
+```elisp
+(add-to-list 'mu4e-headers-actions
+             '("e: export message" . mu4e-views-export-msg-action) t)
+(add-to-list 'mu4e-view-actions
+             '("e: export message" . mu4e-views-export-msg-action) t)
+```
+
+The export action's export formats are defined in `mu4e-views-export-alist` which is an alist mapping symbols (file extensions) to functions that are called for exporting to this type of file. For example, `(pdf . mu4e-views-export-to-pdf)` means that the function `mu4e-views-export-to-pdf` will be called for exporting to `pdf`. An export function should take two arguments `msg` and `file`. `file` is the file to which we should export to and `msg` is the email (a `mu4e` plist).
+
 ## Development
 
 If you want to hack on `mu4e-view`, it maybe usefult to build docker containers for testing with different `mu4e` versions. There are two dockerfiles: `Dockerfile` builds a non-gui version and `Dockerfile-gui` builds a gui version for testing with xwidgets that you can connect to via `VNC`.

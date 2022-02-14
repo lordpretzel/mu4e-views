@@ -181,7 +181,7 @@ determine which view method to use for an email.  The predicates can refer to a
 variable msg to access information about the email to be shown.  This is a
 `mu4e' message plist."
   :group 'mu4e-views
-  :type 'alist)
+  :type '(alist :key-type function :value-type string))
 
 (defcustom mu4e-views-html-to-pdf-command
   "html-pdf %h %p"
@@ -303,6 +303,26 @@ by applying itself to the children of the current node using
 `esxml-tree-map'."
   :group 'mu4e-views
   :type '(list function))
+
+(defcustom mu4e-views-file-open-function
+  'open
+  "Function to use to open attachments.
+
+If `mu4e-views-mu4e-view-open-attachment' is called with a prefix
+argument, then this function is used."
+  :group 'mu4e-views
+  :type 'function)
+
+(defcustom mu4e-views-export-alist
+  '((pdf . mu4e-views-export-to-pdf)
+    (html . mu4e-views-export-to-html))
+  "An alist of cons cells mapping export file formats to functions.
+
+These functions are used to export email messages into a
+particular format. The functions should take a single parameters,
+the `mu4e' message plist."
+  :group 'mu4e-views
+  :type '(alist :key-type symbol :value-type function))
 
 (defvar mu4e-views--mu4e-select-view-msg-method-history
   nil
@@ -678,6 +698,13 @@ in WIN."
     ;; show message
     (switch-to-buffer
      (find-file-noselect pdf) t t)))
+
+(defun mu4e-views--html-to-pdf (html-file pdf-file)
+  "Export HTML-FILE as pdf PDF-FILE."
+  (let ((cmd (format-spec mu4e-views-html-to-pdf-command
+                          (format-spec-make ?h html-file ?p pdf-file))))
+    (message "Execute: %s" cmd)
+    (shell-command cmd nil nil)))
 
 (defun mu4e-views-pdf-is-view-window-p (window)
   "Check whether WINDOW is the mu4e-view window for the `pdf' view method."
@@ -1388,6 +1415,49 @@ The window to switch to is determined based on
       (always-switch-to-view (select-window
                               (mu4e-views-get-view-win)))
       (always-switch-to-headers (mu4e~headers-select-window)))))
+
+;; ********************************************************************************
+;; functions for exporting email
+(defun mu4e-views-export-email-dispatch (format msg file)
+  (let ((exporter (alist-get format mu4e-views-export-alist)))
+    (funcall exporter msg file)))
+
+(defun mu4e-views-export-to-pdf (msg file)
+  "Exports MSG to FILE as a pdf document."
+  (let* ((html (mu4e-views-mu4e~write-body-and-headers-to-html msg -1 nil)))
+    (mu4e-views--html-to-pdf html file)))
+
+(defun mu4e-views-export-to-html (msg file)
+  "Exports MSG to FILE as an html document."
+  (let* ((html (mu4e-views-mu4e~write-body-and-headers-to-html msg -1 nil)))
+    (copy-file html file)))
+
+(defun mu4e-views-export-msg-action (msg)
+  "Export current message as a file."
+  (let* ((format (mu4e-views-completing-read
+                 "Select export file format: "
+                 (--map (symbol-name (car it)) mu4e-views-export-alist)
+                 :require-match t))
+         (formatsym (intern format))
+         (default-file-name (concat
+                             (replace-regexp-in-string "[^[:alnum:]_-]" "_"
+                                                       (concat
+                                                        (caar (mu4e-message-field msg :from))
+                                                        (mu4e-message-field msg :subject)))
+                                                       "."
+                                                       format))
+         (file-name
+          (read-file-name
+           "Export to file: "
+           "~/Downloads/"
+           default-file-name
+           nil
+           default-file-name
+           (lambda (fname)
+             (and
+              (not (directory-name-p fname))
+              (string-suffix-p (concat "." format) fname))))))
+    (mu4e-views-export-email-dispatch formatsym msg file-name)))
 
 ;; ********************************************************************************
 ;; helpers for mu4e-headers view.
