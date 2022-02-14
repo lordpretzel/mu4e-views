@@ -1602,9 +1602,9 @@ urls in `mu4e-views' xwidget message view."
 			                  :caller 'mu4e-views-mu4e-select-url-from-message))
 
 ;;;###autoload
-(defun mu4e-views-mu4e-open-attachment ()
+(defun mu4e-views-mu4e-open-attachment (arg)
   "Select an attached from a mu4e message and open it."
-  (interactive)
+  (interactive "P")
   (let* ((attachments (mapcar (lambda (k)
                                 (list k
                                       (mu4e~view-get-attach
@@ -1695,7 +1695,7 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by
    mu4e-views--current-mu4e-message)
-  (mu4e-views-mu4e-open-attachment))
+  (mu4e-views-mu4e-open-attachment nil))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-go-to-url ()
