@@ -95,6 +95,16 @@
     ("pdf" . (:viewfunc mu4e-view-pdf-view-message
                         :is-view-window-p mu4e-views-pdf-is-view-window-p
                         :create-view-window mu4e-views-text-create-view-window))
+    ;; open as pdf file with remote content
+    ("pdf-nonblock" . (:viewfunc mu4e-view-pdf-view-message
+                        :is-view-window-p mu4e-views-pdf-is-view-window-p
+                        :create-view-window mu4e-views-text-create-view-window
+                        :filter-html nil))
+    ;; open as pdf file with remote content
+    ("pdf-block" . (:viewfunc mu4e-view-pdf-view-message
+                        :is-view-window-p mu4e-views-pdf-is-view-window-p
+                        :create-view-window mu4e-views-text-create-view-window
+                        :filter-html t))
     ;; open with browser
 	("browser" . (:viewfunc mu4e-views-view-in-browser
                             :no-view-window t))
