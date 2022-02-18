@@ -63,3 +63,7 @@ WORKDIR /home/ubuntu
 # Expose VNC port
 ########################################
 EXPOSE 5900
+
+## Local Variables:
+## mode: dockerfile
+## End:

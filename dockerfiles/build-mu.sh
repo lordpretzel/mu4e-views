@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSIONS="1.3.10 1.4.15 1.6.4 master"
+VERSIONS="1.3.10 1.4.15 1.6.4 1.6.10 master"
 cd /mu-src
 
 check_exit()
