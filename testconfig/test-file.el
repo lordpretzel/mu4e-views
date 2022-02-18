@@ -47,6 +47,8 @@
 (setq mu4e-mu-home mu-home)
 
 (define-key mu4e-headers-mode-map (kbd "v") 'mu4e-views-mu4e-select-view-msg-method)
+(setq mu4e-views-default-view-method "html")
+(mu4e-views-mu4e-use-view-msg-method "html")
 
 ;; use mu4e for e-mail in emacs
 (setq mail-user-agent 'mu4e-user-agent)
@@ -62,6 +64,10 @@
 (setq mu4e-trash-folder "/lordpretzel-gmx/Trash")
 
 ;; shortcuts
+(add-to-list 'mu4e-bookmarks
+             '(:name "Messages with attachments"
+                     :query "flag:attach"
+                     :key ?a))
 
 ;; something about ourselves
 (setq user-mail-address "lord_pretzel@gmx.net")

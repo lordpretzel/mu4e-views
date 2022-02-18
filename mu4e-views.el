@@ -964,8 +964,7 @@ method)."
 (defun mu4e-views-mu4e-email-headers-as-html (msg)
   "Create formatted html for headers like subject and from/to of email MSG."
   (interactive)
-  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by
-   mu4e-views--current-mu4e-message)
+  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by msg)
   (cl-flet ((wrap-row (header content id)
                       (concat "<div class=\"mu4e-mu4e-views-header-row\">"
                               "<div class=\"mu4e-mu4e-views-mail-header\">"
@@ -1072,6 +1071,10 @@ text is filtered by applying all filters from
 provided (if FILTERS-HTML is t).  Otherwise,
 `mu4e-views-html-filter-external-content' is consulted to
 determine whether to filter or not."
+
+  ;; create attachments map if it doex not yet exist
+  (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by msg)
+  
   (let* ((html (mu4e-message-field msg :body-html))
 		 (txt (mu4e-message-field msg :body-txt))
 		 (tmpfile (mu4e-make-temp-file "html"))
@@ -1079,10 +1082,16 @@ determine whether to filter or not."
                        (if (eq filter-html t) t nil)
                      mu4e-views-html-filter-external-content))
          (filter-chain (or filters mu4e-views-html-dom-filter-chain))
-		 (attachments (cl-remove-if (lambda (part)
-								      (or (null (plist-get part :attachment))
-								          (null (plist-get part :cid))))
-								    (mu4e-message-field msg :parts))))
+         (attachnames (mu4e-views-get-attachment-names msg))
+         (attachments
+          (--filter (member (plist-get it :name) attachnames)
+                    (mapcar
+                     (lambda (k) (mu4e~view-get-attach mu4e-views--current-mu4e-message k))
+                     (ht-keys mu4e~view-attach-map)))))
+		 ;; (attachments (cl-remove-if (lambda (part)
+		 ;;    					      (or (null (plist-get part :attachment))
+		 ;;    					          (null (plist-get part :cid))))
+		 ;;    					    (mu4e-message-field msg :parts))))
     (unless (or html txt)
       (setq txt "")
 	  (mu4e-views-debug-log "No body part for this message"))
@@ -1099,6 +1108,7 @@ determine whether to filter or not."
 	(mu4e-views-advice-add-if-def #'vc-after-save :override #'mu4e-views-vc-after-save-dummy)
 	(let ((cache-before-save-hook before-save-hook)
 		  (cache-after-save-hook after-save-hook))
+      ;; write HTML to buffer
 	  (with-temp-buffer
 		(setq before-save-hook nil)
 		(setq after-save-hook nil)
@@ -1115,18 +1125,22 @@ determine whether to filter or not."
 		(write-file tmpfile)
 		;; rewrite attachment urls
 		(mapc (lambda (attachment)
-				(goto-char (point-min))
-				(while (re-search-forward (format "src=\"cid:%s\""
-									              (plist-get attachment :cid)) nil t)
-				  (if (plist-get attachment :temp)
-					  (replace-match (format "src=\"%s\""
-									         (plist-get attachment :temp)))
-					(let ((tmp-attachment-name (save-match-data
-								                 (mu4e-make-temp-file (file-name-extension (plist-get attachment :name))))))
+                (let* ((fname (plist-get attachment :name))
+                       (cid (plist-get attachment :cid))
+                       (temp (plist-get attachment :temp))
+                       (tmp-attachment-name (save-match-data (mu4e-make-temp-file (file-name-extension fname))))
+                       (cid-search-str (format "src=\"cid:%s\"" cid)))
+				  (goto-char (point-min))
+				  (while (re-search-forward cid-search-str nil t)
+				    (if temp
+					    (replace-match (format "src=\"%s\"" temp))
+                      ;; replace with file link
 					  (replace-match (format "src=\"%s\"" tmp-attachment-name))
-					  (mu4e~proc-extract 'save (mu4e-message-field msg :docid)
-								         (plist-get attachment :index)
-								         mu4e-decryption-policy tmp-attachment-name)))))
+                      (if (mu4e-views-mu4e-ver-<= '(1 7))
+					      (mu4e~proc-extract 'save (mu4e-message-field msg :docid)
+								             (plist-get attachment :index)
+								             mu4e-decryption-policy tmp-attachment-name)
+                        (mu4e-views-mu4e-save-one-attachment msg fname tmp-attachment-name))))))
 			  attachments)
 		(save-buffer)
 		;; restore normal behaviour
@@ -1849,6 +1863,25 @@ If MSG is nil, use `mu4e-message-at-point'."
                    (not (y-or-n-p (mu4e-format "Overwrite '%s'?" fpath))))))
       (mu4e-views-mu4e-save-one-attachment msg fname fpath)))
 
+  (defun mu4e-views-get-attachment-names (msg)
+    (with-temp-buffer
+      (let ((inhibit-read-only t))
+        (insert-file-contents-literally
+         (mu4e-message-readable-path msg) nil nil nil t)
+        (mu4e~view-render-buffer msg)
+        (let* ((parts (mu4e~view-gather-mime-parts))
+	           (fnames '())
+	           dir)
+          (dolist (part parts)
+            (let ((fname (or (cdr (assoc 'filename (assoc "attachment" (cdr part))))
+                             (cl-loop for item in part
+                                      for name = (and (listp item)
+						                              (assoc-default 'name item))
+                                      thereis (and (stringp name) name)))))
+	          (when fname
+	            (push fname fnames))))
+          fnames))))
+  
   (defun mu4e-views-mu4e-save-one-attachment (msg file to-path)
     "Save attachment FILE from MSG to TO-PATH. "
     (with-temp-buffer
@@ -1867,7 +1900,7 @@ If MSG is nil, use `mu4e-message-at-point'."
                                       thereis (and (stringp name) name)))))
 	          (when fname
 	            (push `(,fname . ,(cdr part)) handles))))
-          (unless (member file (map (lambda (x) (car x)) handles))
+          (unless (member file (mapcar (lambda (x) (car x)) handles))
             (error "Email has no attachment %s" file))
 	      (cl-loop for (f . h) in handles
 		               when (member f `(,file))
@@ -1884,8 +1917,7 @@ If MSG is nil, use `mu4e-message-at-point'."
 					                     (file-exists-p newname))
 				                   (cl-incf count))
 				                 newname)
-			                 to-path)))))))
-  )
+			                 to-path))))))))
 
 
 (defun mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by (msg)
@@ -1894,14 +1926,9 @@ If MSG is nil, use `mu4e-message-at-point'."
 The function we are using is
 `mu4e~view-construct-attachments-header'.  Only do this if we have
 not already done this for this message."
-  ;; (if (mu4e-views-mu4e-ver-< '(1 7))
       (unless (plist-member msg :attachment-setup)
 	    (mu4e~view-construct-attachments-header msg)
-	    (lax-plist-put msg :attachment-setup t))
-    ;; 1.7 and newer
-    ;;TODO gnus article view needs a buffer with the content to extract mime parts
-      ;; )
-)
+	    (lax-plist-put msg :attachment-setup t)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-open-attachment ()
