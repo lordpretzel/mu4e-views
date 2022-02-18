@@ -56,12 +56,14 @@
   (not (version-list-< (version-to-list mu4e-mu-version) v)))
 
 (defun mu4e-views-mu4e-ver-between (low high)
+  "Check whether mu4e-version is between LOW and HIGH."
   (and (mu4e-views-mu4e-ver->= low)
        (mu4e-views-mu4e-ver-<= high)))
 
 ;; INCLUDES
 ;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
 (require 'seq)
+(require 'dash)
 (require 'mu4e)
 ;; for versions 1.5 to 1.6.x there are two view files, but from 1.7 on there is only one build-in view method
 (when (mu4e-views-mu4e-ver-between '(1 5) '(1 6 100))
@@ -600,9 +602,7 @@ number ATTNUM."
 
       (mapc
        (lambda (part)
-         (let ((index (mu4e-message-part-field part :index))
-               (name (mu4e-message-part-field part :name))
-               (size (mu4e-message-part-field part :size)))
+         (let ((index (mu4e-message-part-field part :index)))
            (cl-incf id)
            (puthash id index mu4e~view-attach-map)))
        attachments)))
@@ -879,8 +879,7 @@ This function is for mu4e versions before 1.5.x."
       (mu4e-views-gnus-prepare-display
        mu4e-view-max-specpdl-size
        (mu4e~view-gnus-display-mime msg)
-       (mu4e-personal-addresses)
-       )
+       (mu4e-personal-addresses))
       ;; (setq lexical-binding nil)
       ;;   (let ((mu4e~view-rendering t) ; customize gnus in mu4e
       ;;         (max-specpdl-size mu4e-view-max-specpdl-size)
@@ -1021,7 +1020,7 @@ method)."
 							   (list "date"
                                      (format-time-string (if (boundp 'mu4e-view-date-format)
                                                              mu4e-view-date-format
-                                                           "%Y%m%d")
+                                                           "%Y-%m-%d")
 											             (mu4e-message-field msg :date))
                                      "mu4e-date")
 							   (list "size"
@@ -1029,19 +1028,21 @@ method)."
                                      "mu4e-size")
 							   (list "maildir"
                                      (mu4e-message-field msg :maildir)
-                                     "mu4e-maildir"))))
-      ;; (if (mu4e-views-mu4e-ver-< '(1 7))
-	      (let ((attachments (mapcar
-                              (lambda (k) (mu4e~view-get-attach mu4e-views--current-mu4e-message k))
-                              (ht-keys mu4e~view-attach-map))))
-		    (when attachments
-		      (insert (wrap-row "attachments" (mapconcat
-                                               (lambda (att)
-                                                 (concat "<div class=\"mu4e-mu4e-views-attachment\">"
-                                                         (lax-plist-get att :name) " ("
-                                                         (mu4e-display-size (lax-plist-get att :size)) ")</div>"))
-                                               attachments "")
-                                "mu4e-attachments"))))
+                                     "mu4e-maildir"))))          
+	  (let ((attachments
+             (let ((attnames (mu4e-views-get-attachment-names msg)))
+               (--filter (member (plist-get it :name) attnames)
+                         (mapcar
+                          (lambda (k) (mu4e~view-get-attach mu4e-views--current-mu4e-message k))
+                          (ht-keys mu4e~view-attach-map))))))
+		(when attachments
+		  (insert (wrap-row "attachments" (mapconcat
+                                           (lambda (att)
+                                             (concat "<div class=\"mu4e-mu4e-views-attachment\">"
+                                                     (lax-plist-get att :name) " ("
+                                                     (mu4e-display-size (lax-plist-get att :size)) ")</div>"))
+                                           attachments "")
+                            "mu4e-attachments"))))
         ;;TODO process attachments for 1.7
         ;; )
 	  (insert "</div>")
@@ -1123,7 +1124,7 @@ determine whether to filter or not."
               (insert html))
 		  (insert (concat "<div style=\"white-space: pre-wrap;\">" txt "</div>")))
 		(write-file tmpfile)
-		;; rewrite attachment urls
+		;; rewrite inline attachment urls (show images that are attachments)
 		(mapc (lambda (attachment)
                 (let* ((fname (plist-get attachment :name))
                        (cid (plist-get attachment :cid))
@@ -1802,6 +1803,12 @@ urls in `mu4e-views' xwidget message view."
 		   index mu4e-decryption-policy fpath))))))
 
 ;; for 1.7 we need to keep the function that saves attachments
+(when (mu4e-views-mu4e-ver-< '(1 7))
+  (defun mu4e-views-get-attachment-names (msg)
+    (let ((attnums (sort (ht-keys mu4e~view-attach-map) '<)))
+    (--map (plist-get (mu4e~view-get-attach msg it) :name)
+           attnums))))
+
 (when (mu4e-views-mu4e-ver->= '(1 7))
   (defun mu4e~get-attachment-dir (&optional fname mimetype)
     "Get the directory for saving attachments from
@@ -1890,8 +1897,7 @@ If MSG is nil, use `mu4e-message-at-point'."
          (mu4e-message-readable-path msg) nil nil nil t)
         (mu4e~view-render-buffer msg)
         (let* ((parts (mu4e~view-gather-mime-parts))
-	           (handles '())
-	           dir)
+	           (handles '()))
           (dolist (part parts)
             (let ((fname (or (cdr (assoc 'filename (assoc "attachment" (cdr part))))
                              (cl-loop for item in part
