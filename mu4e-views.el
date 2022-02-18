@@ -36,24 +36,9 @@
 
 
 ;;; Code:
-;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
-(require 'seq)
-(require 'mu4e)
-(when (version-list-<  '(1 5) (version-to-list mu4e-mu-version))
-  (require 'mu4e-view-old)
-  (require 'mu4e-view-gnus)
-  (require 'mu4e-utils))
-(require 'ht)
-(require 'xwidgets-reuse)
-(require 'cl-macs)
-(require 'cl-lib)
-(require 'thingatpt)
-(require 'esxml)
-(require 'dom)
-(require 'gnus-art)
 
 ;; ********************************************************************************
-;; macros
+;; helper functions for version testing
 (defun mu4e-views-mu4e-ver-<= (v)
   "Check whether mu4e-version is less then or equal to V."
   (version-list-<= (version-to-list mu4e-mu-version) v))
@@ -70,14 +55,41 @@
   "Check whether mu4e-version is less then or equal to V."
   (not (version-list-< (version-to-list mu4e-mu-version) v)))
 
+(defun mu4e-views-mu4e-ver-between (low high)
+  (and (mu4e-views-mu4e-ver->= low)
+       (mu4e-views-mu4e-ver-<= high)))
+
+;; INCLUDES
+;;TODO also wrap mu4e text email viewing to get the customizable behaviour and reduction of window messing
+(require 'seq)
+(require 'mu4e)
+;; for versions 1.5 to 1.6.x there are two view files, but from 1.7 on there is only one build-in view method
+(when (mu4e-views-mu4e-ver-between '(1 5) '(1 6 100))
+  (require 'mu4e-view-old)
+  (require 'mu4e-view-gnus)
+  (require 'mu4e-utils))
+(when (mu4e-views-mu4e-ver->= '(1 7))
+  (require 'mu4e-view)
+  (require 'mu4e-message))
+(require 'ht)
+(require 'xwidgets-reuse)
+(require 'cl-macs)
+(require 'cl-lib)
+(require 'thingatpt)
+(require 'esxml)
+(require 'dom)
+(require 'gnus-art)
+
+
 ;; ********************************************************************************
 ;; Customize and defvars
 (defcustom mu4e-views-view-commands
-  '(;; open with standard mu4e function
-    ("text" . (:viewfunc mu4e-views-text-view-message
+  `(;; open with standard mu4e function
+    ,(when (mu4e-views-mu4e-ver-< '(1 7))
+       '("text" . (:viewfunc mu4e-views-text-view-message
                          :create-view-window mu4e-views-text-create-view-window
                          :is-view-window-p mu4e-views-text-is-view-window-p
-                         :view-function-only-msg t))
+                         :view-function-only-msg t)))
     ;; open with xwidget
 	("html" . (:viewfunc mu4e-views-xwidget-mu4e-view
                          :is-view-window-p mu4e-views-xwidget-is-view-window-p))
@@ -173,7 +185,9 @@ if provided the `mu4e' email message as input."
 
 (defcustom mu4e-views-dispatcher-predicate-view-map
   `((,(lambda (msg) (mu4e-message-field msg :body-html)) . "html")
-    (,(lambda (msg) (ignore msg) t) . "text"))
+    (,(lambda (msg) (ignore msg) t) . ,(if (mu4e-views-mu4e-ver-< '(1 7))
+                                           "text"
+                                         "gnus")))
   "Alist of (predicate . view-method) pairs.
 PREDICATE should be a predicate and view-method is a string which should be a
 valid `mu4e-views' view method.  This is used by the dispatcher view method to
@@ -200,7 +214,7 @@ That is, if `mu4e-view-use-gnus' is t, then always use viewing method \"gnus\"."
   :type 'boolean)
 
 (defcustom mu4e-views-default-view-method
-  (cdr (assoc "text" mu4e-views-view-commands))
+  (cdr (assoc (if (mu4e-views-mu4e-ver-< '(1 7)) "text" "gnus") mu4e-views-view-commands))
   "Default method to use for viewing emails in mu4e."
   :group 'mu4e-views
   :type 'plist)
@@ -368,6 +382,11 @@ object.")
   "*mu4e-views-html-src*"
   "Name for the view buffer showing the html source of an email.")
 
+;; for 1.7 create a variable storing attachments
+(when (mu4e-views-mu4e-ver->= '(1 7))
+  (defvar mu4e~view-attach-map nil)
+  (put 'mu4e~view-attach-map 'permanent-local t))
+
 ;; ********************************************************************************
 ;; FUNCTIONS
 
@@ -517,6 +536,81 @@ currently selected viewing method."
   (car (rassoc (mu4e-views-get-current-viewing-method) mu4e-views-view-commands)))
 
 ;; ********************************************************************************
+;; preserve functions for attachment handling from older mu versions
+(when (mu4e-views-mu4e-ver-> '(1 7))
+  (defun mu4e~view-get-attach (msg attnum)
+    "Return the attachment plist in MSG corresponding to attachment
+number ATTNUM."
+    (let* ((partid (gethash attnum mu4e~view-attach-map))
+           (attach
+            (cl-find-if
+             (lambda (part)
+               (eq (mu4e-message-part-field part :index) partid))
+             (mu4e-message-field msg :parts))))
+      (or attach (mu4e-error "Not a valid attachment"))))
+
+  (defun mu4e~view-construct-attachments-header (msg)
+    "Display attachment information; the field looks like something like:
+        :parts ((:index 1 :name \"1.part\" :mime-type \"text/plain\"
+                 :type (leaf) :attachment nil :size 228)
+                (:index 2 :name \"analysis.doc\"
+                 :mime-type \"application/msword\"
+                 :type (leaf attachment) :attachment nil :size 605196))"
+    ;; create hash table
+    (setq mu4e~view-attach-map ;; buffer local
+          (make-hash-table :size 64 :weakness nil))
+
+    ;; identify message parts that are attachments and store them in the hash table
+    (let* ((id 0)
+           (partcount (length (mu4e-message-field msg :parts)))
+           (attachments
+            ;; we only list parts that look like attachments, ie. that have a
+            ;; non-nil :attachment property; we record a mapping between
+            ;; user-visible numbers and the part indices
+            (cl-remove-if-not
+             (lambda (part)
+               (let* ((mtype (or (mu4e-message-part-field part :mime-type)
+                                 "application/octet-stream"))
+                      (partsize (or (mu4e-message-part-field part :size) 0))
+                      (attachtype (mu4e-message-part-field part :type))
+                      (isattach
+                       (or ;; we consider parts marked either
+                        ;; "attachment" or "inline" as attachment.
+                        (member 'attachment attachtype)
+                        ;; list inline parts as attachment (so they can be
+                        ;; saved), unless they are text/plain, which are
+                        ;; usually just message footers in mailing lists
+                        ;;
+                        ;; however, slow bigger text parts as attachments,
+                        ;; except when they're the only part... it's
+                        ;; complicated.
+                        (and (member 'inline attachtype)
+                             (or
+                              (and (> partcount 1) (> partsize 256))
+                              (not (string-match "^text/plain" mtype)))))))
+                 (or ;; remove if it's not an attach *or* if it's an
+                  ;; image/audio/application type (but not a signature)
+                  isattach
+                  (string-match "^\\(image\\|audio\\)" mtype)
+                  (string= "message/rfc822" mtype)
+                  (string= "text/calendar" mtype)
+                  (and (string-match "^application" mtype)
+                       (not (string-match "signature" mtype))))))
+             (mu4e-message-field msg :parts))))
+
+      (mapc
+       (lambda (part)
+         (let ((index (mu4e-message-part-field part :index))
+               (name (mu4e-message-part-field part :name))
+               (size (mu4e-message-part-field part :size)))
+           (cl-incf id)
+           (puthash id index mu4e~view-attach-map)))
+       attachments)))
+
+
+  )
+
+;; ********************************************************************************
 ;; VIEWING METHOD: html
 ;; functions for viewing a mu4e message in xwidgets
 (defun mu4e-views-xwidget-mu4e-view (html msg win)
@@ -606,11 +700,13 @@ passed on to the selected view method."
     (seq-find (lambda (v) (funcall v win)) viewmethods)))
 
 ;; ********************************************************************************
-;; VIEWING METHOD: text
+;; VIEWING METHOD: text (only supported < mu 1.7)
 
 ;; keep byte compiler quiet. This is function is dynamically defined by mu4e based on the selected viewing method.
 (declare-function mu4e-view-mode "mu4e-view" nil t)
 (declare-function mu4e~view-activate-urls nil nil t)
+
+(when (mu4e-views-mu4e-ver-< '(1 7))
 
 (defun mu4e-views-text-view-message (msg win)
   "Copy of most of `mu4e~view-internal' for using this method from `mu4e-views'.
@@ -673,6 +769,8 @@ This window is used by the `text' or `gnus' (standard mu4e methods)."
   (let ((buf (window-buffer window)))
     (or (eq buf mu4e~headers-loading-buf)
         (eq buf (get-buffer mu4e~view-buffer-name)))))
+
+)
 
 ;; ********************************************************************************
 ;; VIEWING METHOD: pdf
@@ -922,7 +1020,9 @@ method)."
 	  (insert (wrap-row "subject" (mu4e-message-field msg :subject) "mu4e-subject"))
 	  (insert (wrap-row-multi (list
 							   (list "date"
-                                     (format-time-string mu4e-view-date-format
+                                     (format-time-string (if (boundp 'mu4e-view-date-format)
+                                                             mu4e-view-date-format
+                                                           "%Y%m%d")
 											             (mu4e-message-field msg :date))
                                      "mu4e-date")
 							   (list "size"
@@ -931,17 +1031,20 @@ method)."
 							   (list "maildir"
                                      (mu4e-message-field msg :maildir)
                                      "mu4e-maildir"))))
-	  (let ((attachments (mapcar
-                          (lambda (k) (mu4e~view-get-attach mu4e-views--current-mu4e-message k))
-                          (ht-keys mu4e~view-attach-map))))
-		(when attachments
-		  (insert (wrap-row "attachments" (mapconcat
-                                           (lambda (att)
-                                             (concat "<div class=\"mu4e-mu4e-views-attachment\">"
-                                                     (lax-plist-get att :name) " ("
-                                                     (mu4e-display-size (lax-plist-get att :size)) ")</div>"))
-                                           attachments "")
-                            "mu4e-attachments"))))
+      ;; (if (mu4e-views-mu4e-ver-< '(1 7))
+	      (let ((attachments (mapcar
+                              (lambda (k) (mu4e~view-get-attach mu4e-views--current-mu4e-message k))
+                              (ht-keys mu4e~view-attach-map))))
+		    (when attachments
+		      (insert (wrap-row "attachments" (mapconcat
+                                               (lambda (att)
+                                                 (concat "<div class=\"mu4e-mu4e-views-attachment\">"
+                                                         (lax-plist-get att :name) " ("
+                                                         (mu4e-display-size (lax-plist-get att :size)) ")</div>"))
+                                               attachments "")
+                                "mu4e-attachments"))))
+        ;;TODO process attachments for 1.7
+        ;; )
 	  (insert "</div>")
 	  (buffer-string))))
 
@@ -1296,7 +1399,8 @@ window."
   (let* ((msg (mu4e-message-at-point))
          (docid (or (mu4e-message-field msg :docid)
                     (mu4e-warn "No message at point")))
-         (decrypt (mu4e~decrypt-p msg))
+         (decrypt (when (mu4e-views-mu4e-ver-< '(1 7))
+                      (mu4e~decrypt-p msg)))
          (mark-as-read (when (mu4e-views-mu4e-ver->= '(1 5 3))
                          (if (functionp mu4e-view-auto-mark-as-read)
                              (funcall mu4e-view-auto-mark-as-read msg)
@@ -1307,7 +1411,8 @@ window."
      ((mu4e-views-mu4e-ver-< '(0 9 9)) (mu4e~proc-view docid mu4e-view-show-images))
      ((mu4e-views-mu4e-ver-<= '(1 3 9)) (mu4e~proc-view docid mu4e-view-show-images decrypt))
      ((mu4e-views-mu4e-ver-<= '(1 5 2)) (mu4e~proc-view docid mu4e-view-show-images decrypt verify))
-     (t (mu4e~proc-view docid mark-as-read decrypt verify)))))
+     ((mu4e-views-mu4e-ver-< '(1 7)) (mu4e~proc-view docid mark-as-read decrypt verify))
+     (t (mu4e--server-view docid mark-as-read)))))
 
 (defun mu4e-views-view-current-msg-with-method (&optional method)
   "Takes `mu4e' message MSG as input and opens it with method METHOD."
@@ -1389,7 +1494,9 @@ then use this instead of the currently selected view method."
   "Used as a replacement for `mu4e-view' to view MSG in mu4e 1.5.x and above."
   (mu4e-views-debug-log "In advice for 1.5.x mu4e-view function")
   (mu4e~headers-update-handler msg nil nil)
-  (mu4e~view-gnus msg))
+  (if (mu4e-views-mu4e-ver-< '(1 7))
+      (mu4e~view-gnus msg)
+    (mu4e-views-view-msg-internal msg)))
 
 (defun mu4e-views-switch-to-right-window ()
   "Switch to a different window.
@@ -1673,9 +1780,113 @@ urls in `mu4e-views' xwidget message view."
 				(and (file-exists-p fpath)
 					 (not (y-or-n-p
 						   (mu4e-format "Overwrite '%s'?" fpath))))))
-		(mu4e~proc-extract
-		 'save (mu4e-message-field msg :docid)
-		 index mu4e-decryption-policy fpath)))))
+        ;; for 1.7 we need to use our one hacky version
+        (if (mu4e-views-mu4e-ver->= '(1 7))
+            (mu4e-views-mu4e-save-one-attachment msg fname fpath)
+		  (mu4e~proc-extract
+		   'save (mu4e-message-field msg :docid)
+		   index mu4e-decryption-policy fpath))))))
+
+;; for 1.7 we need to keep the function that saves attachments
+(when (mu4e-views-mu4e-ver->= '(1 7))
+  (defun mu4e~get-attachment-dir (&optional fname mimetype)
+    "Get the directory for saving attachments from
+`mu4e-attachment-dir' (which can be either a string or a function,
+see its docstring)."
+    (let
+        ((dir
+          (cond
+           ((stringp mu4e-attachment-dir)
+            mu4e-attachment-dir)
+           ((functionp mu4e-attachment-dir)
+            (funcall mu4e-attachment-dir fname mimetype))
+           (t
+            (mu4e-error "unsupported type for mu4e-attachment-dir" )))))
+      (if dir
+          (expand-file-name dir)
+        (mu4e-error "mu4e-attachment-dir evaluates to nil"))))
+
+  (unless (fboundp 'mu4e-message-readable-path)
+    (defun mu4e-message-readable-path (&optional msg)
+      "Get a readable path to MSG or raise an error.
+If MSG is nil, use `mu4e-message-at-point'."
+      (let ((path (plist-get (or msg (mu4e-message-at-point)) :path)))
+        (unless (file-readable-p path)
+          (mu4e-error "No readable message at %s; database outdated?" path))
+        path)))
+
+  (defun mu4e~view-request-attachments-dir (path)
+    "Ask the user where to save multiple attachments (default is PATH)."
+    (let ((fpath (expand-file-name
+                  (read-directory-name
+                   (mu4e-format "Save in directory ")
+                   path nil nil nil) path)))
+      (if (file-directory-p fpath)
+          fpath)))
+
+  (defun mu4e~view-request-attachment-path (fname path)
+    "Ask the user where to save FNAME (default is PATH/FNAME)."
+    (let ((fpath (expand-file-name
+                  (read-file-name
+                   (mu4e-format "Save as ")
+                   path nil nil fname) path)))
+      (if (file-directory-p fpath)
+          (expand-file-name fname fpath)
+        fpath)))
+
+  (defun mu4e-view-save-attachment-single (msg attnum)
+    (let* ((msg (or msg (mu4e-message-at-point)))
+           (att (mu4e~view-get-attach msg attnum))
+           (fname  (plist-get att :name))
+           (mtype  (plist-get att :mime-type))
+           (path (concat
+                  (mu4e~get-attachment-dir fname mtype) "/"))
+           (retry t) (fpath))
+      (while retry
+        (setq fpath (mu4e~view-request-attachment-path fname path))
+        (setq retry
+              (and (file-exists-p fpath)
+                   (not (y-or-n-p (mu4e-format "Overwrite '%s'?" fpath))))))
+      (mu4e-views-mu4e-save-one-attachment msg fname fpath)))
+
+  (defun mu4e-views-mu4e-save-one-attachment (msg file to-path)
+    "Save attachment FILE from MSG to TO-PATH. "
+    (with-temp-buffer
+      (let ((inhibit-read-only t))
+        (insert-file-contents-literally
+         (mu4e-message-readable-path msg) nil nil nil t)
+        (mu4e~view-render-buffer msg)
+        (let* ((parts (mu4e~view-gather-mime-parts))
+	           (handles '())
+	           dir)
+          (dolist (part parts)
+            (let ((fname (or (cdr (assoc 'filename (assoc "attachment" (cdr part))))
+                             (cl-loop for item in part
+                                      for name = (and (listp item)
+						                              (assoc-default 'name item))
+                                      thereis (and (stringp name) name)))))
+	          (when fname
+	            (push `(,fname . ,(cdr part)) handles))))
+          (unless (member file (map (lambda (x) (car x)) handles))
+            (error "Email has no attachment %s" file))
+	      (cl-loop for (f . h) in handles
+		               when (member f `(,file))
+		               do (mm-save-part-to-file
+		                   h
+			               (if (file-exists-p to-path)
+			                   (let (newname (count 1))
+				                 (while (and
+					                     (setq newname
+					                           (concat
+						                        (file-name-sans-extension to-path)
+						                        (format "(%s)" count)
+						                        (file-name-extension to-path t)))
+					                     (file-exists-p newname))
+				                   (cl-incf count))
+				                 newname)
+			                 to-path)))))))
+  )
+
 
 (defun mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by (msg)
   "Call the `mu4e' function to setup the attachments hash-map for MSG.
@@ -1683,9 +1894,14 @@ urls in `mu4e-views' xwidget message view."
 The function we are using is
 `mu4e~view-construct-attachments-header'.  Only do this if we have
 not already done this for this message."
-  (unless (plist-member msg :attachment-setup)
-	(mu4e~view-construct-attachments-header msg)
-	(lax-plist-put msg :attachment-setup t)))
+  ;; (if (mu4e-views-mu4e-ver-< '(1 7))
+      (unless (plist-member msg :attachment-setup)
+	    (mu4e~view-construct-attachments-header msg)
+	    (lax-plist-put msg :attachment-setup t))
+    ;; 1.7 and newer
+    ;;TODO gnus article view needs a buffer with the content to extract mime parts
+      ;; )
+)
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-open-attachment ()
@@ -1963,8 +2179,10 @@ replace with."
               :override #'mu4e-views-mu4e-headers-next)
   (advice-add 'mu4e-view-headers-previous
               :override #'mu4e-views-mu4e-headers-prev)
-  (advice-add 'mu4e~view-gnus
-              :override #'mu4e-views-view-msg-internal)
+  ;; only advice gnus function if it exists
+  (when (mu4e-views-mu4e-ver-< '(1 7))
+    (advice-add 'mu4e~view-gnus
+                :override #'mu4e-views-view-msg-internal))
   (advice-add 'mu4e-get-view-buffer
               :override #'mu4e-views-get-view-buffer)
   (advice-add 'mu4e~view-prev-or-next-unread
