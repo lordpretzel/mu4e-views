@@ -2068,7 +2068,7 @@ then apply user-define function to open the attachment."
   (interactive "P")
   (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by
    mu4e-views--current-mu4e-message)
-  (mu4e-views-mu4e-open-attachment nil))
+  (mu4e-views-mu4e-open-attachment arg))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-view-go-to-url ()
