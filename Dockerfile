@@ -35,6 +35,7 @@ RUN apt-get update && apt-get -y --no-install-recommends install \
 ########################################
 # Copy build script and build mu versions
 ########################################
+RUN rm -rf /mu-src && git clone https://github.com/djcb/mu /mu-src
 COPY ./dockerfiles/build-mu.sh /
 RUN chmod 744 /build-mu.sh && /build-mu.sh
 ########################################

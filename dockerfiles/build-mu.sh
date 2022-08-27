@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSIONS="1.3.10 1.4.15 1.6.4 1.6.10 master"
+VERSIONS="1.3.10 1.4.15 1.6.4 1.6.10 v1.8.9 master"
 cd /mu-src
 
 check_exit()
@@ -14,8 +14,8 @@ for ver in ${VERSIONS};
 do
     echo "build mu ${ver}"
     git checkout ${ver}
-    if [[ "${ver}" == "master" ]]; then
-        meson build --prefix /mu-${ver} \
+    if [[ "${ver}" == "master" || "${ver}" == "v1.8.9" ]]; then
+        meson setup --wipe --prefix /mu-${ver} build \
             && ninja -C build \
             && meson install -C build
         check_exit
