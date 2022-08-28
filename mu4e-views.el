@@ -887,7 +887,7 @@ Also show mu4e message plist and gnus parts for easier debugging."
   (setq mu4e~view-message msg)
   (when (get-buffer mu4e-views-raw-view-buffer-name)
     (kill-buffer mu4e-views-raw-view-buffer-name))
-  (flet ((hmessage (mes)
+  (cl-flet ((hmessage (mes)
                    (insert (format "================================================================================\n%s\n================================================================================\n" (upcase mes)))))
     (let ((buf (get-buffer-create mu4e-views-raw-view-buffer-name)))
       (with-current-buffer buf
@@ -1184,6 +1184,10 @@ determine whether to filter or not."
 
   (let* ((html (mu4e-message-field msg :body-html))
 		 (txt (mu4e-message-field msg :body-txt))
+         (charcoding (downcase (or (plist-get msg :body-html-coding)
+                                   (plist-get msg :body-txt-coding)
+                                   "utf-8")))
+         (codingsymb (intern (downcase charcoding)))
 		 (tmpfile (mu4e-make-temp-file "html"))
          (dofilter (if filter-html
                        (if (eq filter-html t) t nil)
@@ -1204,13 +1208,20 @@ determine whether to filter or not."
 	(mu4e-views-advice-add-if-def #'vc-refresh-state :override #'mu4e-views-vc-refresh-state-dummy)
 	(mu4e-views-advice-add-if-def #'vc-before-save :override #'mu4e-views-vc-before-save-dummy)
 	(mu4e-views-advice-add-if-def #'vc-after-save :override #'mu4e-views-vc-after-save-dummy)
+    ;; write HTML and set coding system
+    (mu4e-views-debug-log "Coding system %s (%s)" charcoding (symbol-name codingsymb))
+    (assert (coding-system-p codingsymb))
 	(let ((cache-before-save-hook before-save-hook)
-		  (cache-after-save-hook after-save-hook))
+		  (cache-after-save-hook after-save-hook)
+          (coding-system-for-write codingsymb))
       ;; write HTML to buffer
 	  (with-temp-buffer
+        (setq-local buffer-file-coding-system codingsymb)
 		(setq before-save-hook nil)
 		(setq after-save-hook nil)
-		(insert (concat "<html><head><meta charset=\"UTF-8\">" mu4e-views-mu4e-html-email-header-style  "</head>\n"))
+		(insert (concat (format "<html><head><meta charset=\"%s\">" charcoding)
+                        mu4e-views-mu4e-html-email-header-style
+                        "</head>\n"))
         ;; insert mu4e-views info header
         (when mu4e-views-inject-email-information-into-html
           (insert (funcall mu4e-views-mu4e-email-headers-as-html-function msg)))
@@ -1613,10 +1624,12 @@ then use this instead of the currently selected view method."
     "Fetch the message as html and store in :body-html."
     (mu4e-views-debug-log "Use gnus to get message html body for: %s" msg)
     (let ((browse-url-browser-function (lambda (url &optional _rest)
+                                         ;; (browse-url-default-browser (url-file-build-filename url) _rest))
                                          (with-temp-buffer
                                            (insert-file-contents-literally
                                             (url-file-build-filename url))
-                                           (plist-put msg :body-html (buffer-string))))))
+                                           (plist-put msg :body-html (buffer-substring-no-properties (point-min) (point-max))))
+                                         )))
       (with-temp-buffer
         (insert-file-contents-literally
          (mu4e-message-readable-path msg) nil nil nil t)
@@ -1630,7 +1643,7 @@ then use this instead of the currently selected view method."
           (when (and (bufferp (car parts))
 		             (stringp (car (mm-handle-type parts))))
 	        (setq parts (list parts)))
-          (mu4e-views--extract-text-from-gnus parts msg)
+          (mu4e-views--extract-text-and-html-coding-from-gnus parts msg)
           ;; (dolist (part parts)
           ;;   (when (and (listp part) (equal (car (mm-handle-type part)) "text/plain"))
           ;;     (plist-put msg :body-txt (mm-get-part part))))
@@ -1638,13 +1651,24 @@ then use this instead of the currently selected view method."
           (gnus-article-browse-html-parts parts header)
           (mm-destroy-parts parts)))))
 
-  (defun mu4e-views--extract-text-from-gnus (parts msg)
+  (defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg)
+    "Extract text parts from PARTS of message MSG."
     (dolist (part parts)
       (cond
+       ;; a text part
        ((and (listp part) (equal (car (mm-handle-type part)) "text/plain"))
-        (plist-put msg :body-txt (mm-get-part part)))
+        (let* ((type (mm-handle-type part))
+               (charset (mail-content-type-get type 'charset)))
+        (plist-put msg :body-txt (mm-get-part part))
+        (plist-put msg :body-txt-coding charset)))
+       ;; an html part
+       ((and  (listp part) (equal (car (mm-handle-type part)) "text/html"))
+        (let* ((type (mm-handle-type part))
+               (charset (mail-content-type-get type 'charset)))
+          (plist-put msg :body-html-coding charset)))
+       ;; recurse into multipart
        ((and (listp part) (equal (mm-handle-media-supertype part) "multipart"))
-        (mu4e-views--extract-text-from-gnus part msg)))))
+        (mu4e-views--extract-text-and-html-coding-from-gnus part msg)))))
   )
 
 
