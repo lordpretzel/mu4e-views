@@ -1227,14 +1227,10 @@ determine whether to filter or not."
           (insert (funcall mu4e-views-mu4e-email-headers-as-html-function msg)))
         ;; if message is html, then optionally apply provided or default filter-chain
         (if html
-            ;; for v1.8 need to deal with charsets
-            ;; (when (mu4e-views-mu4e-ver-> '(1 8 0))
-            ;;   (if (eq (plist-get msg :charset) 'gnus-decoded)
-		    ;;       (mm-enable-multibyte)
-		    ;;     (mm-disable-multibyte)))
-            (if dofilter
-                (insert (mu4e-views-filter-html msg html filter-chain))
-              (insert html))
+            (let ((decoded-html (decode-coding-string html codingsymb)))
+              (if dofilter
+                  (insert (mu4e-views-filter-html msg decoded-html filter-chain codingsymb))
+                (insert decoded-html)))
 		  (insert (concat "<div style=\"white-space: pre-wrap;\">" txt "</div>")))
 		(write-file tmpfile)
 		;; rewrite inline attachment urls (show images that are attachments)
@@ -1275,7 +1271,7 @@ determine whether to filter or not."
 
 ;; ********************************************************************************
 ;; functions for filtering HTML DOMs
-(defun mu4e-views-filter-html (msg html &optional filters)
+(defun mu4e-views-filter-html (msg html &optional filters codingsymb)
   "Filter HTML of message MSG to remove external elements.
 
 All filters from `mu4e-views-html-dom-filter-chain' are applied
@@ -1286,9 +1282,9 @@ filters to apply instead."
      "FILTER HTML:\n\tfilters: %s\n\thave LIBXML: %s"
      filters
      (libxml-available-p))
-    (if (not (libxml-available-p))
-        html
+    (when (libxml-available-p)
       (with-temp-buffer
+        (setq-local buffer-file-coding-system codingsymb)
         (insert html)
         (let ((dom (libxml-parse-html-region (point-min) (point-max))))
           (esxml-to-xml
@@ -1658,14 +1654,20 @@ then use this instead of the currently selected view method."
        ;; a text part
        ((and (listp part) (equal (car (mm-handle-type part)) "text/plain"))
         (let* ((type (mm-handle-type part))
-               (charset (mail-content-type-get type 'charset)))
-        (plist-put msg :body-txt (mm-get-part part))
-        (plist-put msg :body-txt-coding charset)))
+               (charset (mail-content-type-get type 'charset))
+               (txt (mm-get-part part)))
+          (plist-put msg :body-txt (if (plist-member msg :body-txt)
+                                       (concat (plist-get msg :body-txt)
+                                               txt)
+                                     txt))
+          (plist-put msg :body-txt-coding charset)))
        ;; an html part
        ((and  (listp part) (equal (car (mm-handle-type part)) "text/html"))
         (let* ((type (mm-handle-type part))
                (charset (mail-content-type-get type 'charset)))
-          (plist-put msg :body-html-coding charset)))
+          ;; if there are multiple html parts with different codings use more specific encoding (currently only checks for ascii)
+          (unless (and (plist-member msg :body-html-coding) (string-match-p ".*ascii.*" charset))
+            (plist-put msg :body-html-coding charset))))
        ;; recurse into multipart
        ((and (listp part) (equal (mm-handle-media-supertype part) "multipart"))
         (mu4e-views--extract-text-and-html-coding-from-gnus part msg)))))
