@@ -609,8 +609,10 @@ number ATTNUM."
                         :type (leaf attachment)
                         :name ,name
                         :filename ,filename
-                        :attachment t)
+                        :attachment t
+                        :attindex ,id)
                attplists)))))
+      ;; (setq attplists (nreverse attplists))
       (plist-put msg :parts attplists)
       (setq id 0)
       (dolist (att attplists)
@@ -1210,7 +1212,7 @@ determine whether to filter or not."
 	(mu4e-views-advice-add-if-def #'vc-after-save :override #'mu4e-views-vc-after-save-dummy)
     ;; write HTML and set coding system
     (mu4e-views-debug-log "Coding system %s (%s)" charcoding (symbol-name codingsymb))
-    (assert (coding-system-p codingsymb))
+    (cl-assert (coding-system-p codingsymb))
 	(let ((cache-before-save-hook before-save-hook)
 		  (cache-after-save-hook after-save-hook)
           (coding-system-for-write codingsymb))
@@ -1624,28 +1626,23 @@ then use this instead of the currently selected view method."
                                          (with-temp-buffer
                                            (insert-file-contents-literally
                                             (url-file-build-filename url))
-                                           (plist-put msg :body-html (buffer-substring-no-properties (point-min) (point-max))))
-                                         )))
-      (with-temp-buffer
-        (insert-file-contents-literally
-         (mu4e-message-readable-path msg) nil nil nil t)
-        (run-hooks 'gnus-article-decode-hook)
-        (let ((header nil) ;; (unless skip-headers
-		      ;; (cl-loop for field in '("from" "to" "cc" "date" "subject")
-			  ;;      when (message-fetch-field field)
-			  ;;      concat (format "%s: %s\n" (capitalize field) it))))
-	          (parts (mm-dissect-buffer t t)))
-          ;; If singlepart, enforce a list.
-          (when (and (bufferp (car parts))
-		             (stringp (car (mm-handle-type parts))))
-	        (setq parts (list parts)))
+                                           (plist-put msg :body-html (buffer-substring-no-properties (point-min) (point-max)))))))
+      (mu4e-views-create-gnus-all-parts-if-need-be msg)
+      ;; (with-temp-buffer
+      ;;   (insert-file-contents-literally
+      ;;    (mu4e-message-readable-path msg) nil nil nil t)
+      ;;   (run-hooks 'gnus-article-decode-hook)
+      ;;   (let ((header nil)
+	  ;;         (parts (mm-dissect-buffer t t)))
+      ;;     ;; If singlepart, enforce a list.
+      ;;     (when (and (bufferp (car parts))
+	  ;;                (stringp (car (mm-handle-type parts))))
+	  ;;       (setq parts (list parts)))
+      (let ((parts (plist-get msg :gnus-all-parts))
+            header)
+        (with-current-buffer (plist-get msg :gnus-buffer)
           (mu4e-views--extract-text-and-html-coding-from-gnus parts msg)
-          ;; (dolist (part parts)
-          ;;   (when (and (listp part) (equal (car (mm-handle-type part)) "text/plain"))
-          ;;     (plist-put msg :body-txt (mm-get-part part))))
-          ;; Process the list
-          (gnus-article-browse-html-parts parts header)
-          (mm-destroy-parts parts)))))
+          (gnus-article-browse-html-parts parts header)))))
 
   (defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg)
     "Extract text parts from PARTS of message MSG."
@@ -2121,7 +2118,8 @@ this message. We record this in a message property:
 Cache these datastructures so we do not recreate them everytime
 we do something with an attachment."
     (unless (lax-plist-get msg :gnus-attachments)
-      (setq gnus-summary-buffer (get-buffer-create " *appease-gnus*"))
+      (mu4e-views-create-gnus-all-parts-if-need-be msg)
+      (setq gnus-summary-buffer (get-buffer-create " *appease-gnus*")) ;;TODO do we really need to go through all of that?
       (when (bufferp gnus-article-buffer)
         (kill-buffer gnus-article-buffer))
       (setq gnus-article-buffer mu4e-view-buffer-name)
@@ -2163,36 +2161,53 @@ we do something with an attachment."
                 (epg-error
                  (mu4e-warn "EPG error: %s; fall back to raw view"
 		                    (error-message-string err))))
-              (let* ((parts (mu4e~view-gather-mime-parts))
+              (let* ((parts (plist-get msg :gnus-all-parts)) ;;(mu4e~view-gather-mime-parts))
 	                 (handles '()))
-                (dolist (part parts)
-                  (mu4e-views-debug-log "Process part: %s" part)
-                  (let ((fname (or (cdr (assoc 'filename (assoc "attachment" (cdr part))))
-                                   (cl-loop for item in part
-                                            for name = (and (listp item)
-	  				                                        (assoc-default 'name item))
-                                            thereis (and (stringp name) name)))))
-	                (when fname
-	                  (push `(,fname . ,(cdr part)) handles))))
+                (setq handles (mu4e-views--extract-attachment-parts parts))
                 (lax-plist-put msg :attachment-setup t)
                 (lax-plist-put msg :gnus-msg-parts parts)
                 (lax-plist-put msg :gnus-attachments handles)
                 (mu4e-views-debug-log "Gnu message parts: %s\nAttachment handles: %s" parts handles)))))))
 
-    (defun mu4e-views-create-gnus-all-parts-if-need-be (msg)
-      "Extract all message parts including inline images from MSG using gnus.
+  (defun mu4e-views--extract-attachment-parts (parts)
+    "Determine which message PARTS are "
+    (let ((attachments))
+      (dolist (part parts)
+        (mu4e-views-debug-log "Process part: %s" part)
+        (when (listp part)
+          (cond ((equal (mm-handle-media-supertype part) "multipart")
+                 (mu4e-views-debug-log "Part %s is multipart, recurse" part)
+                 (setq attachments (append attachments (mu4e-views--extract-attachment-parts part))))
+                (t (let ((fname (or (cdr (assoc 'filename (assoc "attachment" part)))
+                                    (cdr (assoc 'filename (assoc "inline" part)))
+                                    (cl-loop for item in part
+                                             for name = (and (listp item)
+	  				                                         (assoc-default 'name item))
+                                             thereis (and (stringp name) name)))))
+	                 (when fname
+                       (mu4e-views-debug-log "Part %s is an attachment" part)
+	                   (push `(,fname . ,part) attachments)))))))
+      attachments))
+  
+  (defun mu4e-views-create-gnus-all-parts-if-need-be (msg)
+    "Extract all message parts including inline images from MSG using gnus.
 
-Used to insert inline content into html message."
-      (with-temp-buffer
-        (insert-file-contents-literally
-         (mu4e-message-readable-path msg) nil nil nil t)
-        (run-hooks 'gnus-article-decode-hook)
-        (let ((parts (mm-dissect-buffer t t)))
-          ;; If singlepart, enforce a list.
-          (when (and (bufferp (car parts))
-		             (stringp (car (mm-handle-type parts))))
-	        (setq parts (list parts)))
-          (lax-plist-put msg :gnus-all-parts parts))))
+Used to insert inline content into html message and for
+extracting attachments."
+    (unless (plist-member msg :gnus-all-parts)
+      (let* ((gnusbufname (make-temp-name "gnus-part-extraction-"))
+             (gnusbuf (get-buffer-create gnusbufname)))
+        (with-current-buffer gnusbuf
+          (insert-file-contents-literally
+           (mu4e-message-readable-path msg) nil nil nil t)
+          (run-hooks 'gnus-article-decode-hook)
+          (let ((parts (mm-dissect-buffer t t)))
+            ;; If singlepart, enforce a list.
+            (when (and (bufferp (car parts))
+		               (stringp (car (mm-handle-type parts))))
+	          (setq parts (list parts)))
+            (lax-plist-put msg :gnus-all-parts parts)
+            (plist-put msg :gnus-buffer gnusbuf))))))
 
     (defun mu4e-views-get-attachment-names (msg)
       "Return names of attachments for MSG.
