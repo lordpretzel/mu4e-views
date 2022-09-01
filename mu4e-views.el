@@ -1599,6 +1599,11 @@ then use this instead of the currently selected view method."
 	  (unless (or html txt)
 	    (mu4e-views-debug-log "\tNo body part for this message")
         (setq txt "")));;FIXME what is the purpose of this, this does not do anything, need to deal in writing to HTML!
+    ;; cleanup old message if it exists
+    (when (and mu4e-views--current-mu4e-message
+               (not (equal (mu4e-message-field mu4e-views--current-mu4e-message :docid) (mu4e-message-field msg :docid))))
+      (mu4e-views--cleanup-message-datastructure mu4e-views--current-mu4e-message))
+    ;; store message
 	(setq mu4e-views--current-mu4e-message msg)
     (setq mu4e~view-message msg)
     (unless only-msg
@@ -1617,6 +1622,16 @@ then use this instead of the currently selected view method."
         ))
     (mu4e-views-switch-to-right-window)))
 
+(defun mu4e-views--cleanup-message-datastructure (msg)
+  "Cleanup gnus datastructures we created for MSG."
+  (when (plist-member msg :gnus-all-parts)
+    (mm-destroy-parts (plist-get msg :gnus-all-parts))
+    (cl-remf msg :gnus-all-parts)
+    (cl-remf msg :gnus-attachments)
+    (when (bufferp (plist-get msg :gnus-buffer))
+      (kill-buffer (plist-get msg :gnus-buffer))
+      (cl-remf msg :gnus-buffer))))
+
 (when (mu4e-views-mu4e-ver-> '(1 8 0))
   (defun mu4e-views--extract-html-for-v18 (msg)
     "Fetch the message as html and store in :body-html."
@@ -1628,16 +1643,6 @@ then use this instead of the currently selected view method."
                                             (url-file-build-filename url))
                                            (plist-put msg :body-html (buffer-substring-no-properties (point-min) (point-max)))))))
       (mu4e-views-create-gnus-all-parts-if-need-be msg)
-      ;; (with-temp-buffer
-      ;;   (insert-file-contents-literally
-      ;;    (mu4e-message-readable-path msg) nil nil nil t)
-      ;;   (run-hooks 'gnus-article-decode-hook)
-      ;;   (let ((header nil)
-	  ;;         (parts (mm-dissect-buffer t t)))
-      ;;     ;; If singlepart, enforce a list.
-      ;;     (when (and (bufferp (car parts))
-	  ;;                (stringp (car (mm-handle-type parts))))
-	  ;;       (setq parts (list parts)))
       (let ((parts (plist-get msg :gnus-all-parts))
             header)
         (with-current-buffer (plist-get msg :gnus-buffer)
@@ -2119,55 +2124,55 @@ Cache these datastructures so we do not recreate them everytime
 we do something with an attachment."
     (unless (lax-plist-get msg :gnus-attachments)
       (mu4e-views-create-gnus-all-parts-if-need-be msg)
-      (setq gnus-summary-buffer (get-buffer-create " *appease-gnus*")) ;;TODO do we really need to go through all of that?
-      (when (bufferp gnus-article-buffer)
-        (kill-buffer gnus-article-buffer))
-      (setq gnus-article-buffer mu4e-view-buffer-name)
-      (with-current-buffer (get-buffer-create gnus-article-buffer)
+      ;; (setq gnus-summary-buffer (get-buffer-create " *appease-gnus*")) ;;TODO do we really need to go through all of that?
+      ;; (when (bufferp gnus-article-buffer)
+      ;;   (kill-buffer gnus-article-buffer))
+      ;; (setq gnus-article-buffer mu4e-view-buffer-name)
+      ;; (with-current-buffer (get-buffer-create gnus-article-buffer)
         ;; insert message file and render with gnus
-        (let ((inhibit-read-only t))
-          (insert-file-contents-literally
-           (mu4e-message-readable-path msg) nil nil nil t)
-            (let* ((inhibit-read-only t)
-	               (max-specpdl-size mu4e-view-max-specpdl-size)
-	               (mm-decrypt-option 'known)
-	               (ct (mail-fetch-field "Content-Type"))
-	               (ct (and ct (mail-header-parse-content-type ct)))
-	               (charset (mail-content-type-get ct 'charset))
-	               (charset (and charset (intern charset)))
-	               (mu4e~view-rendering t); Needed if e.g. an ics file is buttonized
-	               (gnus-article-emulate-mime t)
-	               (gnus-unbuttonized-mime-types '(".*/.*"))
-	               (gnus-buttonized-mime-types
-	                (append (list "multipart/signed" "multipart/encrypted")
-		                    gnus-buttonized-mime-types))
-	               (gnus-newsgroup-charset
-	                (if (and charset (coding-system-p charset)) charset
-	                  (detect-coding-region (point-min) (point-max) t)))
-	               ;; Possibly add headers (before "Attachments")
-	               (gnus-display-mime-function (mu4e~view-gnus-display-mime msg))
-	               (gnus-icalendar-additional-identities
-	                (mu4e-personal-addresses 'no-regexp)))
-              (condition-case err
-	              (progn
-	                (mm-enable-multibyte)
-	                (mu4e-view-mode)
-	                (run-hooks 'gnus-article-decode-hook)
-	                (gnus-article-prepare-display)
-	                (mu4e~view-activate-urls)
-	                (setq mu4e~gnus-article-mime-handles gnus-article-mime-handles
-		                  gnus-article-decoded-p gnus-article-decode-hook)
-	                (set-buffer-modified-p nil))
-                (epg-error
-                 (mu4e-warn "EPG error: %s; fall back to raw view"
-		                    (error-message-string err))))
+        ;; (let ((inhibit-read-only t))
+        ;;   (insert-file-contents-literally
+        ;;    (mu4e-message-readable-path msg) nil nil nil t)
+            ;; (let* ((inhibit-read-only t)
+	        ;;        (max-specpdl-size mu4e-view-max-specpdl-size)
+	        ;;        (mm-decrypt-option 'known)
+	        ;;        (ct (mail-fetch-field "Content-Type"))
+	        ;;        (ct (and ct (mail-header-parse-content-type ct)))
+	        ;;        (charset (mail-content-type-get ct 'charset))
+	        ;;        (charset (and charset (intern charset)))
+	        ;;        (mu4e~view-rendering t); Needed if e.g. an ics file is buttonized
+	        ;;        (gnus-article-emulate-mime t)
+	        ;;        (gnus-unbuttonized-mime-types '(".*/.*"))
+	        ;;        (gnus-buttonized-mime-types
+	        ;;         (append (list "multipart/signed" "multipart/encrypted")
+		    ;;                 gnus-buttonized-mime-types))
+	        ;;        (gnus-newsgroup-charset
+	        ;;         (if (and charset (coding-system-p charset)) charset
+	        ;;           (detect-coding-region (point-min) (point-max) t)))
+	        ;;        ;; Possibly add headers (before "Attachments")
+	        ;;        (gnus-display-mime-function (mu4e~view-gnus-display-mime msg))
+	        ;;        (gnus-icalendar-additional-identities
+	        ;;         (mu4e-personal-addresses 'no-regexp)))
+            ;;   (condition-case err
+	        ;;       (progn
+	        ;;         (mm-enable-multibyte)
+	        ;;         (mu4e-view-mode)
+	        ;;         (run-hooks 'gnus-article-decode-hook)
+	        ;;         (gnus-article-prepare-display)
+	        ;;         (mu4e~view-activate-urls)
+	        ;;         (setq mu4e~gnus-article-mime-handles gnus-article-mime-handles
+		    ;;               gnus-article-decoded-p gnus-article-decode-hook)
+	        ;;         (set-buffer-modified-p nil))
+            ;;     (epg-error
+            ;;      (mu4e-warn "EPG error: %s; fall back to raw view"
+		    ;;                 (error-message-string err))))
               (let* ((parts (plist-get msg :gnus-all-parts)) ;;(mu4e~view-gather-mime-parts))
 	                 (handles '()))
                 (setq handles (mu4e-views--extract-attachment-parts parts))
                 (lax-plist-put msg :attachment-setup t)
                 (lax-plist-put msg :gnus-msg-parts parts)
                 (lax-plist-put msg :gnus-attachments handles)
-                (mu4e-views-debug-log "Gnu message parts: %s\nAttachment handles: %s" parts handles)))))))
+                (mu4e-views-debug-log "Gnu message parts: %s\nAttachment handles: %s" parts handles)))))
 
   (defun mu4e-views--extract-attachment-parts (parts)
     "Determine which message PARTS are "
@@ -2188,7 +2193,7 @@ we do something with an attachment."
                        (mu4e-views-debug-log "Part %s is an attachment" part)
 	                   (push `(,fname . ,part) attachments)))))))
       attachments))
-  
+
   (defun mu4e-views-create-gnus-all-parts-if-need-be (msg)
     "Extract all message parts including inline images from MSG using gnus.
 
