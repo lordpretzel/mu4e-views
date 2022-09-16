@@ -410,6 +410,13 @@ object.")
 
 This also prints other internal data structures for debugging.")
 
+(defconst mu4e-views--default-coding-system
+  "utf-8"
+  "Default coding system for emails.")
+
+(defconst mu4e-views--charset-translation
+  '(("utf8" . "utf-8"))
+  "Translate from email charsets to valid Emacs charset names.")
 
 ;; for 1.7 create a variable storing attachments
 (when (mu4e-views-mu4e-ver->= '(1 7))
@@ -1197,10 +1204,10 @@ determine whether to filter or not."
 
   (let* ((html (mu4e-message-field msg :body-html))
 		 (txt (mu4e-message-field msg :body-txt))
-         (charcoding (downcase (or (plist-get msg :body-html-coding)
+         (charcoding (or (plist-get msg :body-html-coding)
                                    (plist-get msg :body-txt-coding)
-                                   "utf-8")))
-         (codingsymb (intern (downcase charcoding)))
+                                   mu4e-views--default-coding-system))
+         (codingsymb (intern charcoding))
 		 (tmpfile (mu4e-make-temp-file "html"))
          (dofilter (if filter-html
                        (if (eq filter-html t) t nil)
@@ -1720,7 +1727,7 @@ view buffers."
        ;; a text part
        ((and (listp part) (equal (car (mm-handle-type part)) "text/plain"))
         (let* ((type (mm-handle-type part))
-               (charset (mail-content-type-get type 'charset))
+               (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset)))
                (txt (mm-get-part part)))
           (plist-put msg :body-txt (if (plist-member msg :body-txt)
                                        (concat (plist-get msg :body-txt)
@@ -1730,7 +1737,7 @@ view buffers."
        ;; an html part
        ((and  (listp part) (equal (car (mm-handle-type part)) "text/html"))
         (let* ((type (mm-handle-type part))
-               (charset (mail-content-type-get type 'charset)))
+               (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset))))
           ;; if there are multiple html parts with different codings use more specific encoding (currently only checks for ascii)
           (unless (and (plist-member msg :body-html-coding) (string-match-p ".*ascii.*" charset))
             (plist-put msg :body-html-coding charset))))
@@ -1738,6 +1745,17 @@ view buffers."
        ((and (listp part) (equal (mm-handle-media-supertype part) "multipart"))
         (mu4e-views--extract-text-and-html-coding-from-gnus part msg)))))
   )
+
+(defun mu4e-views--convert-charset (charset)
+  "Translate email coding system CHARSET into Emacs coding system."
+  (let* ((downc (downcase charset))
+         (fixed (or (alist-get downc mu4e-views--charset-translation)
+                    downc)))
+    (unless (coding-system-p (intern fixed))
+      (warn "Unkown coding system %s in email" fixed)
+      (setq fixed mu4e-views--default-coding-system))
+    (mu4e-views-debug-log "translate coding system %s into %s" charset fixed)
+    fixed))
 
 
 (declare-function mu4e~view-gnus nil t nil)
@@ -1827,7 +1845,7 @@ format."
     (mu4e-views-export-email-dispatch formatsym msg file-name)))
 
 (defun mu4e-views-forward-as-exported-attachment (msg)
-  "Export this email and forward the exported file as an attachment."
+  "Export this email MSG and forward the exported file as an attachment."
   (let ((file (make-temp-file "mu4e-views-export")))
     (mu4e-views-export-msg-action msg file)
     (mu4e-compose 'forward)
