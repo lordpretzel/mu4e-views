@@ -287,6 +287,7 @@ moving to the `mu4e-views' window (`always-switch-to-view')."
 .mu4e-mu4e-views-header-content { font-family: Courier New; font-size:10pt; display: inline-block; font-weight: normal; color: black; padding-right: 6px; }
 .mu4e-mu4e-views-email { font-family: Courier New; font-size:10pt; display: inline-block; padding-right: 8px; }
 .mu4e-mu4e-views-attachment { font-family: Courier New; font-size:10pt; display: inline-block; padding-right: 8px; }
+.mu4e-mu4e-views-mail-title { font-family: Courier New; font-size:14pt; font-weight: bold; display: inline-block; padding-right: 8px; width: 100%; text-align: center; }
 </style>"
   "CSS style for displaying email header information in a mu4e-views email view."
   :group 'mu4e-views
@@ -1207,6 +1208,7 @@ determine whether to filter or not."
          (charcoding (or (plist-get msg :body-html-coding)
                                    (plist-get msg :body-txt-coding)
                                    mu4e-views--default-coding-system))
+         (icalinvites (plist-get msg :icals))
          (codingsymb (intern charcoding))
 		 (tmpfile (mu4e-make-temp-file "html"))
          (dofilter (if filter-html
@@ -1247,7 +1249,12 @@ determine whether to filter or not."
                         "</head>\n"))
         ;; insert mu4e-views info header
         (when mu4e-views-inject-email-information-into-html
+          (mu4e-views-debug-log "Insert html mail header")
           (insert (funcall mu4e-views-mu4e-email-headers-as-html-function msg)))
+        ;; insert ical invites from message
+        (dolist (ical icalinvites)
+          (mu4e-views-debug-log "Insert calendar invite")
+          (insert (mu4e-views-ical-to-html ical)))
         ;; if message is html, then optionally apply provided or default filter-chain
         (if html
             (let ((decoded-html (decode-coding-string html codingsymb)))
@@ -1291,6 +1298,58 @@ determine whether to filter or not."
 		(setq after-save-hook cache-after-save-hook)
 		(lax-plist-put msg :html-file tmpfile)
 		tmpfile))))
+
+;; convert calendar invite into html
+(defun mu4e-views-ical-to-html (ical)
+  "Convert an calendar invite gnus handle into html."
+  (cl-flet* ((wrap-row (header content id)
+              (concat "<div class=\"mu4e-mu4e-views-header-row\">"
+                      "<div class=\"mu4e-mu4e-views-mail-header\">"
+                      header "</div>: <div class=\"mu4e-mu4e-views-header-content\" id=\""
+                      id "\">"
+                      content "</div></div>"))
+			(wrap-row-multi (headers)
+              (concat "<div class=\"mu4e-mu4e-views-header-row\">"
+					  (mapconcat
+                       (lambda (l) (let ((header (nth 0 l))
+										 (content (nth 1 l))
+										 (id (nth 2 l)))
+									 (concat "<div class=\"mu4e-mu4e-views-mail-header\">"
+											 header "</div>: <div class=\"mu4e-mu4e-views-header-content\" id=\""
+                                             id "\">"
+											 content "</div>")))
+					   headers "")
+					  "</div>"))
+            (key-field-row (key field)
+              (when (and field (not (string-equal field  "")))
+              (let ((id (concat "mu4e-" key)))
+              	  (insert (wrap-row key
+                        (concat "<div class=\"mu4e-mu4e-views-email\">"
+                                (substring-no-properties field)
+                                "</div>")
+                        id))))))
+	(with-temp-buffer
+	  (insert (concat "<div class=\"mu4e-mu4e-views-mail-headers\">"))
+      (insert "<div class=\"mu4e-mu4e-views-mail-title\">Calendar Invite</div>")
+      (key-field-row "organizer" (gnus-icalendar-event:organizer ical))
+      (key-field-row "summary" (gnus-icalendar-event:summary ical))
+      (key-field-row "location" (gnus-icalendar-event:location ical))
+      (key-field-row "time" (concat (gnus-icalendar-event:start ical)
+                                    " - "
+                                    (format-time-string "%H:%m" (gnus-icalendar-event:end-time ical))))
+      (key-field-row "participants"
+                     (->> (gnus-icalendar-event:req-participants ical)
+                          (--reduce-from (concat acc (when (not (string-equal acc "")) ", ") it) "")))
+      (key-field-row "optional-participants"
+                     (->> (gnus-icalendar-event:opt-participants ical)
+                          (--reduce-from (concat acc (when (not (string-equal acc "")) ", ") it) "")))
+      (when (gnus-icalendar-event:description ical)
+          (key-field-row "description" "  ")
+          (insert (concat "<div style=\"white-space: pre-wrap;\">"
+                                 (gnus-icalendar-event:description ical)
+                                 "</div>")))
+	  (insert "</div>")
+	  (buffer-string))))
 
 ;; ********************************************************************************
 ;; functions for filtering HTML DOMs
@@ -1722,6 +1781,7 @@ view buffers."
 
   (defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg)
     "Extract text parts from PARTS of message MSG."
+    (plist-put msg :icals nil)
     (dolist (part parts)
       (cond
        ;; a text part
@@ -1734,8 +1794,15 @@ view buffers."
                                                txt)
                                      txt))
           (plist-put msg :body-txt-coding charset)))
+       ;; a calendar part
+       ((and (listp part) (or (equal (car (mm-handle-type part)) "text/calendar")
+                              (equal (car (mm-handle-type part)) "html/calendar")))
+        (let ((ical (gnus-icalendar-event-from-handle part (gnus-icalendar-identities))))
+          (mu4e-views-debug-log "Ical event: %s" (gnus-icalendar-event:summary ical))
+          (plist-put msg :icals
+                     (append `(,ical) (plist-get msg :icals)))))
        ;; an html part
-       ((and  (listp part) (equal (car (mm-handle-type part)) "text/html"))
+       ((and (listp part) (equal (car (mm-handle-type part)) "text/html"))
         (let* ((type (mm-handle-type part))
                (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset))))
           ;; if there are multiple html parts with different codings use more specific encoding (currently only checks for ascii)
@@ -1748,7 +1815,8 @@ view buffers."
 
 (defun mu4e-views--convert-charset (charset)
   "Translate email coding system CHARSET into Emacs coding system."
-  (let* ((downc (downcase charset))
+  (let* ((cs (or charset mu4e-views--default-coding-system))
+         (downc (downcase cs))
          (fixed (or (alist-get downc mu4e-views--charset-translation)
                     downc)))
     (unless (coding-system-p (intern fixed))
