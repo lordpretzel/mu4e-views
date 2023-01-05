@@ -1208,6 +1208,7 @@ determine whether to filter or not."
          (charcoding (or (plist-get msg :body-html-coding)
                                    (plist-get msg :body-txt-coding)
                                    mu4e-views--default-coding-system))
+         (transfercoding (plist-get msg :body-transfer-coding))
          (icalinvites (plist-get msg :icals))
          (codingsymb (intern charcoding))
 		 (tmpfile (mu4e-make-temp-file "html"))
@@ -1219,6 +1220,8 @@ determine whether to filter or not."
     (unless (or html txt)
       (setq txt "")
 	  (mu4e-views-debug-log "No body part for this message"))
+    ;; (when (and txt (string= transfercoding "base64"))
+    ;;   (setq txt (base64-decode-string txt nil t)))
 	;; remove hooks and advices that are not needed for writing constructed content to a file, but slow us down
 	(mu4e-views-advice-remove-if-def #'set-visited-file-name 'doom-modeline-update-buffer-file-name)
 	(mu4e-views-advice-remove-if-def #'set-visited-file-name 'lsp--on-set-visited-file-name)
@@ -1231,7 +1234,7 @@ determine whether to filter or not."
 	(mu4e-views-advice-add-if-def #'vc-before-save :override #'mu4e-views-vc-before-save-dummy)
 	(mu4e-views-advice-add-if-def #'vc-after-save :override #'mu4e-views-vc-after-save-dummy)
     ;; write HTML and set coding system
-    (mu4e-views-debug-log "Coding system %s (%s)" charcoding (symbol-name codingsymb))
+    (mu4e-views-debug-log "Coding system %s (%s) - with transfer coding" charcoding (symbol-name codingsymb) transfercoding)
     (cl-assert (coding-system-p codingsymb)
                "Unkown coding system: %s (%s)"
                (symbol-name codingsymb)
@@ -1776,41 +1779,64 @@ view buffers."
       (let ((parts (plist-get msg :gnus-all-parts))
             header)
         (with-current-buffer (plist-get msg :gnus-buffer)
-          (mu4e-views--extract-text-and-html-coding-from-gnus parts msg)
+          (mu4e-views--extract-text-and-html-coding-from-gnus parts msg nil)
           (gnus-article-browse-html-parts parts header)))))
 
-  (defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg)
-    "Extract text parts from PARTS of message MSG."
-    (plist-put msg :icals nil)
-    (dolist (part parts)
-      (cond
-       ;; a text part
-       ((and (listp part) (equal (car (mm-handle-type part)) "text/plain"))
-        (let* ((type (mm-handle-type part))
-               (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset)))
-               (txt (mm-get-part part)))
-          (plist-put msg :body-txt (if (plist-member msg :body-txt)
-                                       (concat (plist-get msg :body-txt)
-                                               txt)
-                                     txt))
-          (plist-put msg :body-txt-coding charset)))
-       ;; a calendar part
-       ((and (listp part) (or (equal (car (mm-handle-type part)) "text/calendar")
-                              (equal (car (mm-handle-type part)) "html/calendar")))
-        (let ((ical (gnus-icalendar-event-from-handle part (gnus-icalendar-identities))))
-          (mu4e-views-debug-log "Ical event: %s" (gnus-icalendar-event:summary ical))
-          (plist-put msg :icals
-                     (append `(,ical) (plist-get msg :icals)))))
-       ;; an html part
-       ((and (listp part) (equal (car (mm-handle-type part)) "text/html"))
-        (let* ((type (mm-handle-type part))
-               (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset))))
-          ;; if there are multiple html parts with different codings use more specific encoding (currently only checks for ascii)
-          (unless (and (plist-member msg :body-html-coding) (string-match-p ".*ascii.*" charset))
-            (plist-put msg :body-html-coding charset))))
-       ;; recurse into multipart
-       ((and (listp part) (equal (mm-handle-media-supertype part) "multipart"))
-        (mu4e-views--extract-text-and-html-coding-from-gnus part msg)))))
+(defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg inmp)
+  "Extract text parts from PARTS of message MSG."
+  (plist-put msg :icals nil)
+  (dolist (part parts)
+    (cond
+     ;; a text part
+     ((and (listp part) (equal (car (mm-handle-type part)) "text/plain"))
+      (let* ((type (mm-handle-type part))
+             (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset)))
+             (encoding (mm-handle-encoding part))
+             (txt (mm-get-part part)))
+        (when encoding
+          (if inmp
+              (let ((buf))
+                (with-current-buffer (mm-handle-buffer part)
+                  (setq buf (buffer-string)))
+                (with-temp-buffer
+                  (insert buf)
+                  (mm-decode-body charset encoding "text/plain")
+                  (setq txt (buffer-string))))
+            (save-restriction
+              (save-restriction
+	            (article-narrow-to-head)
+	            (goto-char (point-max)))
+              (forward-line 1)
+              (save-restriction
+	            (narrow-to-region (point) (point-max))
+                (setq txt (buffer-string))))))
+        (plist-put msg :body-txt (if (plist-member msg :body-txt)
+                                     (concat (plist-get msg :body-txt)
+                                             txt)
+                                   txt))
+        (plist-put msg :body-txt-coding charset)))
+     ;; a calendar part
+     ((and (listp part) (or (equal (car (mm-handle-type part)) "text/calendar")
+                            (equal (car (mm-handle-type part)) "html/calendar")))
+      (let ((ical (gnus-icalendar-event-from-handle part (gnus-icalendar-identities))))
+        (mu4e-views-debug-log "Ical event: %s" (gnus-icalendar-event:summary ical))
+        (plist-put msg :icals
+                   (append `(,ical) (plist-get msg :icals)))))
+     ;; an html part
+     ((and (listp part) (equal (car (mm-handle-type part)) "text/html"))
+      (let* ((type (mm-handle-type part))
+             (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset)))
+             (encoding (mm-handle-encoding part)))
+        ;; if there are multiple html parts with different codings use more specific encoding (currently only checks for ascii)
+        (unless (and (plist-member msg :body-html-coding) (string-match-p ".*ascii.*" charset))
+          (plist-put msg :body-html-coding charset))
+        (when encoding (plist-put msg :body-transfer-coding encoding))))
+     ;; recurse into multipart
+     ((and (listp part) (equal (mm-handle-media-supertype part) "multipart"))
+      (mu4e-views--extract-text-and-html-coding-from-gnus part msg t))
+     ;; marker for multipart mixed
+     ((and (stringp part) (string= part "multipart/mixed"))
+      (setq inmp t)))))
   )
 
 (defun mu4e-views--convert-charset (charset)
@@ -1893,9 +1919,15 @@ format."
          (default-file-name (concat
                              (replace-regexp-in-string "[^[:alnum:]_-]" "_"
                                                        (concat
+                                                        (format-time-string (if (boundp 'mu4e-view-date-format)
+                                                                                mu4e-view-date-format
+                                                                              "%Y-%m-%d")
+											                                (mu4e-message-field msg :date))
+                                                        "_"
                                                         (if (mu4e-views-mu4e-ver-> '(1 8))
                                                             (plist-get (car (mu4e-message-field msg :from)) :name)
                                                           (caar (mu4e-message-field msg :from)))
+                                                        "_"
                                                         (mu4e-message-field msg :subject)))
                              "."
                              format))
