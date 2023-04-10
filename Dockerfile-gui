@@ -8,6 +8,7 @@ FROM dorowu/ubuntu-desktop-lxde-vnc:latest
 ########################################
 # Install packages and emacs
 ########################################
+RUN rm /etc/apt/sources.list.d/google-chrome.list*
 RUN add-apt-repository -y ppa:kelleyk/emacs
 RUN apt-get update && apt-get -y --no-install-recommends install \
     autoconf-archive                 \
@@ -45,6 +46,12 @@ COPY ./Maildir /Maildir
 RUN rm -rf /mu-src && git clone https://github.com/djcb/mu /mu-src
 COPY ./dockerfiles/build-mu.sh /
 RUN chmod 744 /build-mu.sh && /build-mu.sh
+RUN apt-get update && apt-get -y --no-install-recommends install python3-pip
+RUN pip3 install --no-cache-dir --upgrade meson==1.0.1
+RUN echo "export PATH=~/.local/bin/:$PATH" >> /root/.profile \
+   && echo "export PATH=~/.local/bin/:$PATH" >> /root/.bashrc
+COPY ./dockerfiles/build-new-mu.sh /
+RUN chmod 744 /build-new-mu.sh && /build-new-mu.sh
 ########################################
 # Copy mu4e-views repo
 ########################################

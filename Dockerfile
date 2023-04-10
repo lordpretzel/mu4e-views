@@ -46,5 +46,5 @@ RUN find /mu4e-views -name \*.elc -execdir rm {} \;
 ########################################
 # Make sure emacs packages we need are installed
 ########################################
-RUN MUVER=1.6.4 emacs --batch -l /mu4e-views/testconfig/test-file.el
+#RUN MUVER=1.6.4 emacs --batch -l /mu4e-views/testconfig/test-file.el
 WORKDIR /

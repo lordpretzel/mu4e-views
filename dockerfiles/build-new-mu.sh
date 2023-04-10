@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSIONS="1.3.10 1.4.15 1.6.4 1.6.10"
+VERSIONS="v1.8.14 v1.10.1 master" # v1.10.1" # v1.8.14 v1.10.1 master"
 cd /mu-src
 
 check_exit()
@@ -13,20 +13,16 @@ check_exit()
 for ver in ${VERSIONS};
 do
     echo "build mu ${ver}"
+    git clean
     git checkout ${ver}
-    if [[ "${ver}" == "master" || "${ver}" == "v1.8.14" || "${ver}" == "v1.10.1" ]]; then
-        meson setup --wipe --prefix /mu-${ver} build \
-            && ninja -C build \
-            && meson install -C build
-        check_exit
-    else
-        make distclean
-        ./autogen.sh \
-            && ./configure --prefix /mu-${ver} \
-            && make -j \
-            && make install
-        check_exit
-    fi
+    ./autogen.sh
+    # ./configure --prefix /mu-${ver}
+    meson setup --wipe --prefix /mu-${ver} build \
+        && ninja -C build \
+        && meson install -C build
+    make
+    make install
+    check_exit
     /mu-${ver}/bin/mu init -m /Maildir --muhome=/mu-home-${ver} --my-address "lord_pretzel@gmx.net"
     /mu-${ver}/bin/mu --muhome=/mu-home-${ver} index
     echo "MUVER=${ver} emacs -l /mu4e-views/testconfig/test-file.el" > /emu-${ver}.sh
