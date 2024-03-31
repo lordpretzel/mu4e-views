@@ -2743,7 +2743,7 @@ replace with."
   (mu4e-views-advice-unadvice #'mu4e~headers-move)
   (mu4e-views-advice-unadvice #'mu4e-select-other-view)
   (mu4e-views-advice-unadvice #'mu4e-view-headers-next)
-  (mu4e-views-advice-unadvice #'mu4e-view-headers-previous)
+  (mu4e-views-advice-unadvice #'mu4e-view-headers-prev)
   (mu4e-views-advice-unadvice #'mu4e~view-gnus)
   (mu4e-views-advice-unadvice #'mu4e-get-view-buffer)
   (mu4e-views-advice-unadvice #'mu4e~view-prev-or-next-unread)
@@ -2774,7 +2774,7 @@ replace with."
               :override #'mu4e-views-select-other-view)
   (advice-add 'mu4e-view-headers-next
               :override #'mu4e-views-mu4e-headers-next)
-  (advice-add 'mu4e-view-headers-previous
+  (advice-add 'mu4e-view-headers-prev
               :override #'mu4e-views-mu4e-headers-prev)
   ;; only advice gnus function if it exists
   (when (mu4e-views-mu4e-ver-< '(1 7))
