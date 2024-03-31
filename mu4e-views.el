@@ -1819,7 +1819,12 @@ view buffers."
             header)
         (with-current-buffer gnusbuf
           (mu4e-views--extract-text-and-html-coding-from-gnus parts msg nil)
-          (gnus-article-browse-html-parts parts header))))))
+          ;; necessary to avoid (error "No buffer named *Article*")
+          (setq tmp-gnus-buffer gnus-article-buffer
+                gnus-article-buffer (plist-get msg :gnus-buffer))
+          (gnus-article-browse-html-parts parts header)
+          ;; reset to original value
+          (setq gnus-article-buffer tmp-gnus-buffer)))))
 
 (defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg inmp)
   "Extract text parts from PARTS of message MSG."
