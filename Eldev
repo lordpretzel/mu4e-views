@@ -13,4 +13,5 @@
 
 ;; do not include the test config for docker tests
 (setq eldev-standard-excludes
-      (append eldev-standard-excludes '("./testconfig/**")))
+      `(:or ,eldev-standard-excludes "./testconfig/**"))
+;; (pp eldev-standard-excludes)
