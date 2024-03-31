@@ -2814,8 +2814,6 @@ replace with."
   (when (mu4e-views-mu4e-ver-> '(1 7))
     (advice-add 'mu4e-compose
                 :override #'mu4e-views-compose))
-  (when (mu4e-views-mu4e-ver->= '(1 12))
-    (defvaralias 'mu4e~view-link-map 'mu4e--view-link-map))
   (setq mu4e-views--advice-installed t))
 
 (unless mu4e-views--advice-installed
