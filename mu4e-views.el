@@ -428,6 +428,11 @@ This also prints other internal data structures for debugging.")
   (defvar mu4e~view-attach-map nil)
   (put 'mu4e~view-attach-map 'permanent-local t))
 
+;; Internal mu4e methods switched from ~ to -- naming convention
+(when (mu4e-views-mu4e-ver->= '(1 10))
+  (defvaralias 'mu4e~view-message 'mu4e--view-message)
+  (defvaralias 'mu4e~view-rendering 'mu4e--view-rendering))
+
 ;; ********************************************************************************
 ;; FUNCTIONS
 
@@ -959,7 +964,10 @@ Ignores HTML."
     (mu4e-views-gnus-view-message-1.10-or-later msg win))))
 
 
-(declare-function mu4e~view-render-buffer nil t)
+(if (mu4e-views-mu4e-ver->= '(1 10))
+    (defalias 'mu4e~view-render-buffer #'mu4e--view-render-buffer)
+  (declare-function mu4e~view-render-buffer nil t))
+
 (defvar gnus-article-buffer)
 
 (defun mu4e-views-gnus-view-message-1.10-or-later (msg win)
@@ -1771,7 +1779,7 @@ Symbol `edit' is only allowed for draft messages."
       ;; 'new is special, since it takes no existing message as arg; therefore, we
       ;; don't need to involve the backend, and call the handler *directly*
       (if (eq compose-type 'new)
-          (mu4e~compose-handler 'new)
+          (mu4e~compose-handler 'new) ; TODO: no longer exists since https://github.com/djcb/mu/commit/85bfe763362b95935a3967f6585e14b3f9890a70
         ;; otherwise, we need the doc-id
         (let* ((docid (mu4e-message-field msg :docid))
                ;; decrypt (or not), based on `mu4e-decryption-policy'.
@@ -2104,6 +2112,11 @@ started from to be able to respect
 ;; mu4e-view modes.  These functions wrap `mu4e' functions and pass on our
 ;; saved message.
 
+;; Internal mu4e methods switched from ~ to -- naming convention
+(when (mu4e-views-mu4e-ver->= '(1 10))
+  (defvaralias 'mu4e~view-link-map 'mu4e--view-link-map)
+  (defvaralias 'mu4e~view-beginning-of-url-regexp 'mu4e--view-beginning-of-url-regexp))
+
 ;;;###autoload
 (defun mu4e-views-mu4e-extract-urls-from-msg (msg)
   "Prepare mu4e message data structure for MSG.
@@ -2159,6 +2172,9 @@ user."
 			                    :require-match t
 			                    :caller 'mu4e-views-mu4e-open-attachment)))
 
+(if (mu4e-views-mu4e-ver->= '(1 10))
+    (defalias 'mu4e~view-open-file #'mu4e--view-open-file))
+
 (defun mu4e-views--write-att-to-file-and-open (fname user-open-func)
   "Write attachment FNAME for current message to file and open it.
 
@@ -2167,7 +2183,7 @@ If USER-OPEN-FUNC is non-nil, then call function
   (let* ((msg mu4e-views--current-mu4e-message)
          (index (mu4e-views--att-index-for-name fname)))
     (if (mu4e-views-mu4e-ver-< '(1 7))
-		(mu4e-view-open-attachment
+	(mu4e-view-open-attachment
          mu4e-views--current-mu4e-message
          index)
       (mu4e-views-create-gnus-att-handles-need-be msg)
@@ -2556,6 +2572,9 @@ Passes on the message stored in `mu4e-views--current-mu4e-message'."
   (interactive)
   (mu4e-view-fetch-url mu4e-views--current-mu4e-message))
 
+(if (mu4e-views-mu4e-ver->= '(1 10))
+    (defalias 'mu4e~view-in-headers-context #'mu4e--view-in-headers-context))
+
 (defun mu4e-views-view-prev-or-next-unread (backwards)
   "Move point to the next or previous unread message.
 
@@ -2729,14 +2748,17 @@ replace with."
           (t ""))))
       (buffer-string))))
 
+(if (mu4e-views-mu4e-ver->= '(1 10))
+    (defalias 'mu4e~view-gnus #'mu4e--view-gnus))
+
 ;;;###autoload
 (defun mu4e-views-unload-function ()
   "Uninstalls the advices on mu4e functions created by mu4e-views."
   (interactive)
   (mu4e-views-debug-log "Uninstall mu4e advice")
-  (mu4e-views-advice-unadvice 'mu4e~view-internal)
+  (mu4e-views-advice-unadvice 'mu4e~view-internal) ; TODO: no longer exists since https://github.com/djcb/mu/commit/e2655ba34b49615aab413f6ef8fe8de32d230a15
   (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
-    (mu4e-views-advice-unadvice #'mu4e~view-old)
+    (mu4e-views-advice-unadvice #'mu4e~view-old) ; TODO: no longer exists since https://github.com/djcb/mu/commit/e6be09e626f33f42b54e438ac90168467f42189e
     (mu4e-views-advice-unadvice #'mu4e-view)
     (mu4e-views-advice-unadvice #'mu4e-message-outlook-cleanup))
   (mu4e-views-advice-unadvice #'mu4e-headers-view-message)
@@ -2746,7 +2768,7 @@ replace with."
   (mu4e-views-advice-unadvice #'mu4e-view-headers-prev)
   (mu4e-views-advice-unadvice #'mu4e~view-gnus)
   (mu4e-views-advice-unadvice #'mu4e-get-view-buffer)
-  (mu4e-views-advice-unadvice #'mu4e~view-prev-or-next-unread)
+  (mu4e-views-advice-unadvice #'mu4e~view-prev-or-next-unread) ; TODO: API change in https://github.com/djcb/mu/commit/92ac6de09cf84aea4e196d494a726bf06299bd77
   (mu4e-views-advice-unadvice #'mu4e-message-at-point)
   (mu4e-views-advice-unadvice #'mu4e-views-compose)
   (setq mu4e-views--advice-installed nil))
@@ -2755,11 +2777,11 @@ replace with."
   "Advice mu4e functions used by mu4e-views to overwrite its functionality."
   (mu4e-views-debug-log "Install mu4e advice for mu version %s" mu4e-mu-version)
   ;; in all cases
-  (advice-add 'mu4e~view-internal
+  (advice-add 'mu4e~view-internal ; TODO: no longer exists since https://github.com/djcb/mu/commit/e2655ba34b49615aab413f6ef8fe8de32d230a15
               :override #'mu4e-views-view-msg-internal)
   ;; only for 1.5 and above
   (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
-    (advice-add 'mu4e~view-old
+    (advice-add 'mu4e~view-old ; TODO: no longer exists since https://github.com/djcb/mu/commit/e6be09e626f33f42b54e438ac90168467f42189e
                 :override #'mu4e-views-view-msg-internal)
     ;; for 1.5 and above avoid complaint about old and gnus to being loaded
     (advice-add 'mu4e-view
@@ -2782,7 +2804,7 @@ replace with."
                 :override #'mu4e-views-view-msg-internal))
   (advice-add 'mu4e-get-view-buffer
               :override #'mu4e-views-get-view-buffer)
-  (advice-add 'mu4e~view-prev-or-next-unread
+  (advice-add 'mu4e~view-prev-or-next-unread ; TODO: API change in https://github.com/djcb/mu/commit/92ac6de09cf84aea4e196d494a726bf06299bd77
               :override #'mu4e-views-view-prev-or-next-unread)
   (when (mu4e-views-mu4e-ver-> '(1 7))
     (advice-add 'mu4e-compose
