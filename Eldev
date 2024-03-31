@@ -4,8 +4,10 @@
 (eldev-use-package-archive 'gnu)
 (eldev-use-package-archive 'melpa)
 
-(add-to-list 'load-path "/usr/local/share/emacs/site-lisp/mu/mu4e")
-(eldev-use-local-dependency "/usr/local/share/emacs/site-lisp/mu/mu4e")
+;; (add-to-list 'load-path "/usr/local/share/emacs/site-lisp/mu/mu4e")
+;; (eldev-use-local-dependency "/usr/local/share/emacs/site-lisp/mu/mu4e")
+(add-to-list 'load-path "/opt/homebrew/Cellar/mu/1.12.2/share/emacs/site-lisp/mu/mu4e/")
+(eldev-use-local-dependency "/opt/homebrew/Cellar/mu/1.12.2/share/emacs/site-lisp/mu/mu4e/")
 
 (eldev-use-plugin 'autoloads)
 

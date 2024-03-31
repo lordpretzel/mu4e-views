@@ -3,7 +3,7 @@
 ;; Author: Boris Glavic <lordpretzel@gmail.com>
 ;; Maintainer: Boris Glavic <lordpretzel@gmail.com>
 ;; Version: 0.3
-;; Package-Requires: ((emacs "26.1") (xwidgets-reuse "0.2") (ht "2.2") (esxml "20210323.1102"))
+;; Package-Requires: ((emacs "26.1") (xwidgets-reuse "0.3") (ht "2.2") (esxml "20210323.1102"))
 ;; Homepage: https://github.com/lordpretzel/mu4e-views
 ;; Keywords: mail
 
@@ -90,6 +90,10 @@
 
 ;; ********************************************************************************
 ;; Customize and defvars
+(defconst mu4e-views--xwidget-session-name
+  "*mu4e-views-session*"
+  "Name of the named xwidgets sessions used for showing emails.")
+
 (defcustom mu4e-views-view-commands
   `,(append ;; open with standard mu4e function
      (when (mu4e-views-mu4e-ver-< '(1 7))
@@ -705,12 +709,19 @@ The field looks like something like:
   (unless (fboundp 'xwidget-webkit-browse-url)
 	(mu4e-error "No xwidget support available"))
   (setq mu4e~view-message msg)
-  ;; select window
-  (select-window win)
+  ;; ;; select window
+  ;; (select-window win)
   ;; show message
-  (xwidgets-reuse-xwidget-reuse-browse-url
-   (concat "file://" html)
-   'mu4e-views-view-actions-mode))
+  (xwidgets-reuse-named-session-browse-url
+   mu4e-views--xwidget-session-name
+   :url (concat "file://" html)
+   :use-minor-mode 'mu4e-views-view-actions-mode
+   :window win
+   :focus-window nil
+   :switch-to-session t))
+  ;; (xwidgets-reuse-xwidget-reuse-browse-url
+  ;;  (concat "file://" html)
+  ;;  'mu4e-views-view-actions-mode))
 
 (defun mu4e-views-xwidget-is-view-window-p (win)
   "Return t if WIN is the xwidget view window."
@@ -939,12 +950,32 @@ Ignores HTML."
 
 (defun mu4e-views-gnus-view-message (msg win)
   "View message MSG on window WIN using Gnus article mode."
-  (if (mu4e-views-mu4e-ver-< '(1 5))
-      (mu4e-views-gnus-view-message-before-1.5 msg win)
-    (mu4e-views-gnus-view-message-1.5-or-later msg win)))
+  (cond
+   ((mu4e-views-mu4e-ver-< '(1 5))
+    (mu4e-views-gnus-view-message-before-1.5 msg win))
+   ((mu4e-views-mu4e-ver-< '(1 10))
+    (mu4e-views-gnus-view-message-1.5-or-later msg win))
+   (t
+    (mu4e-views-gnus-view-message-1.10-or-later msg win))))
+
 
 (declare-function mu4e~view-render-buffer nil t)
 (defvar gnus-article-buffer)
+
+(defun mu4e-views-gnus-view-message-1.10-or-later (msg win)
+  "View message MSG on window WIN using Gnus article.
+
+This function is for mu4e versions 1.5.x or later."
+  (when (bufferp gnus-article-buffer)
+    (kill-buffer gnus-article-buffer))
+  (with-current-buffer (get-buffer-create gnus-article-buffer)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (insert-file-contents-literally
+       (mu4e-message-field msg :path) nil nil nil t)))
+  (select-window win)
+  (switch-to-buffer gnus-article-buffer t t)
+  (mu4e--view-render-buffer msg))
 
 (defun mu4e-views-gnus-view-message-1.5-or-later (msg win)
   "View message MSG on window WIN using Gnus article.
@@ -1535,41 +1566,47 @@ message view (if the current viewing method needs a window)."
   (mu4e-views-debug-log "REDRAW WINDOWS IF NECESSARY")
   (let ((create-view-fun (plist-get (mu4e-views-get-current-viewing-method) :create-view-window)))
     ;; single window
-    (when (eq mu4e-split-view 'single-window)
-      (mu4e-views-debug-log "\twe are using SINGLE PANE")
-      (let* ((win (selected-window))
-             (viewwin (mu4e-views-get-view-win t))
-             (usewin (if (and viewwin (window-live-p viewwin)) viewwin win)))
-        (setq mu4e-views--view-window usewin)
-        (setq mu4e~headers-view-win usewin)
-        (when create-view-fun
-          (mu4e-views-debug-log "\tCALL CREATE VIEW FUNCTION: %s" create-view-fun)
-          (funcall create-view-fun viewwin))
-        usewin))
-    ;; if we have already the right setup, then just return the mu4e-views window
-    (mu4e-views-debug-log "\twe are using MULTIPLE PANES")
-    (if (mu4e-views-mu4e-header-and-view-windows-p)
+    (if (eq mu4e-split-view 'single-window)
         (progn
-          (mu4e-views-debug-log "\tREUSE EXISTING WINDOW %s" (mu4e-views-get-view-win))
-          (mu4e-views-get-view-win))
-      ;; create the window
-      (unless (buffer-live-p (mu4e-get-headers-buffer))
-        (mu4e-error "\tNo headers buffer available"))
-      (switch-to-buffer (mu4e-get-headers-buffer))
-      (delete-other-windows)
-      ;; get a new view window
-      (let ((theviewwin (cond ((eq mu4e-split-view 'horizontal) ;; split horizontally
-                               (split-window-vertically mu4e-headers-visible-lines))
-                              ((eq mu4e-split-view 'vertical) ;; split vertically
-                               (split-window-horizontally mu4e-headers-visible-columns)))))
-        (mu4e-views-debug-log "\tWINDOW TO USE FOR VIEWING: %s\n\t\tall windows: %s" theviewwin (window-list))
-        (setq mu4e-views--view-window theviewwin)
-        (setq mu4e~headers-view-win theviewwin)
-        ;; if viewing method provdes a setup method for the viewing window then call it
-        (when create-view-fun
-          (mu4e-views-debug-log "\tCALL CREATE VIEW FUNCTION: %s" create-view-fun)
-          (funcall create-view-fun theviewwin))
-        theviewwin))))
+          (mu4e-views-debug-log "\twe are using SINGLE PANE")
+          (let* ((win (selected-window))
+                 (viewwin (mu4e-views-get-view-win t))
+                 (usewin (if (and viewwin (window-live-p viewwin)) viewwin win)))
+            (setq mu4e-views--view-window usewin)
+            (setq mu4e~headers-view-win usewin)
+            (when create-view-fun
+              (mu4e-views-debug-log "\tCALL CREATE VIEW FUNCTION: %s" create-view-fun)
+              (funcall create-view-fun usewin))
+            usewin))
+      ;; if we have already the right setup, then just return the mu4e-views window
+      (mu4e-views-debug-log "\twe are using MULTIPLE PANES")
+      (if (mu4e-views-mu4e-header-and-view-windows-p)
+          (progn
+            (mu4e-views-debug-log "\tREUSE EXISTING WINDOW %s" (mu4e-views-get-view-win))
+            (mu4e-views-get-view-win))
+        ;; create the window
+        (unless (buffer-live-p (mu4e-get-headers-buffer))
+          (mu4e-error "\tNo headers buffer available"))
+        (switch-to-buffer (mu4e-get-headers-buffer))
+        (delete-other-windows)
+        ;; get a new view window, make sure it is not too small
+        (let ((theviewwin (cond ((eq mu4e-split-view 'horizontal) ;; split horizontally
+                                 (split-window-vertically
+                                  (min (round (* 0.5 (window-height)))
+                                   mu4e-headers-visible-lines)))
+                                ((eq mu4e-split-view 'vertical) ;; split vertically
+                                 (split-window-horizontally
+                                  (min
+                                   (round (* 0.5 (window-width)))
+                                   mu4e-headers-visible-columns))))))
+          (mu4e-views-debug-log "\tWINDOW TO USE FOR VIEWING: %s\n\t\tall windows: %s" theviewwin (window-list))
+          (setq mu4e-views--view-window theviewwin)
+          (setq mu4e~headers-view-win theviewwin)
+          ;; if viewing method provdes a setup method for the viewing window then call it
+          (when create-view-fun
+            (mu4e-views-debug-log "\tCALL CREATE VIEW FUNCTION: %s" create-view-fun)
+            (funcall create-view-fun theviewwin))
+          theviewwin)))))
 
 (defun mu4e-views-headers-redraw-get-view-buffer ()
   "Return the view buffer.
@@ -1776,11 +1813,13 @@ view buffers."
                                             (url-file-build-filename url))
                                            (plist-put msg :body-html (buffer-substring-no-properties (point-min) (point-max)))))))
       (mu4e-views-create-gnus-all-parts-if-need-be msg)
-      (let ((parts (plist-get msg :gnus-all-parts))
+      (let* ((parts (plist-get msg :gnus-all-parts))
+             (gnusbuf (plist-get msg :gnus-buffer))
+             (gnus-article-buffer (buffer-name gnusbuf)) ;; overwrite for gnus
             header)
-        (with-current-buffer (plist-get msg :gnus-buffer)
+        (with-current-buffer gnusbuf
           (mu4e-views--extract-text-and-html-coding-from-gnus parts msg nil)
-          (gnus-article-browse-html-parts parts header)))))
+          (gnus-article-browse-html-parts parts header))))))
 
 (defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg inmp)
   "Extract text parts from PARTS of message MSG."
@@ -1837,7 +1876,6 @@ view buffers."
      ;; marker for multipart mixed
      ((and (stringp part) (string= part "multipart/mixed"))
       (setq inmp t)))))
-  )
 
 (defun mu4e-views--convert-charset (charset)
   "Translate email coding system CHARSET into Emacs coding system."
@@ -1903,6 +1941,14 @@ The window to switch to is determined based on
   "Exports MSG to FILE as an html document."
   (let* ((html (mu4e-views-mu4e~write-body-and-headers-to-html msg -1 nil)))
     (copy-file html file)))
+
+(defun mu4e-views-headers-export-to-pdf ()
+  "Export current message from headers to pdf file."
+  (interactive)
+  (mu4e-views-export-msg-action
+   (mu4e-message-at-point)
+   nil
+   "pdf"))
 
 (defun mu4e-views-export-msg-action (msg &optional tofile export-format)
   "Export MSG to a file.
@@ -2128,7 +2174,9 @@ If USER-OPEN-FUNC is non-nil, then call function
       (let ((fpath (mu4e-view-save-attachment-single msg index)))
         (if user-open-func
             (funcall mu4e-views-file-open-function fpath)
-          (mu4e~view-open-file fpath nil))))))
+          (if (mu4e-views-mu4e-ver->= '(1 10))
+              (mu4e--view-open-file fpath nil)
+            (mu4e~view-open-file fpath nil)))))))
 
 (defun mu4e-views--att-index-for-name (fname &optional msg)
   "Return index of attachment FNAME for MSG.
