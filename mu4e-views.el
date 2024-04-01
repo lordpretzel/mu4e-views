@@ -2787,9 +2787,10 @@ replace with."
   "Uninstalls the advices on mu4e functions created by mu4e-views."
   (interactive)
   (mu4e-views-debug-log "Uninstall mu4e advice")
-  (mu4e-views-advice-unadvice 'mu4e~view-internal) ; TODO: no longer exists since https://github.com/djcb/mu/commit/e2655ba34b49615aab413f6ef8fe8de32d230a15
+  (when (mu4e-views-mu4e-ver-< '(1 10))
+    (mu4e-views-advice-unadvice 'mu4e~view-internal))
   (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
-    (mu4e-views-advice-unadvice #'mu4e~view-old) ; TODO: no longer exists since https://github.com/djcb/mu/commit/e6be09e626f33f42b54e438ac90168467f42189e
+    (mu4e-views-advice-unadvice #'mu4e~view-old)
     (mu4e-views-advice-unadvice #'mu4e-view)
     (mu4e-views-advice-unadvice #'mu4e-message-outlook-cleanup))
   (mu4e-views-advice-unadvice #'mu4e-headers-view-message)
@@ -2808,11 +2809,12 @@ replace with."
   "Advice mu4e functions used by mu4e-views to overwrite its functionality."
   (mu4e-views-debug-log "Install mu4e advice for mu version %s" mu4e-mu-version)
   ;; in all cases
-  (advice-add 'mu4e~view-internal ; TODO: no longer exists since https://github.com/djcb/mu/commit/e2655ba34b49615aab413f6ef8fe8de32d230a15
-              :override #'mu4e-views-view-msg-internal)
+  (when (mu4e-views-mu4e-ver-< '(1 10))
+    (advice-add 'mu4e~view-internal 
+              :override #'mu4e-views-view-msg-internal))
   ;; only for 1.5 and above
   (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
-    (advice-add 'mu4e~view-old ; TODO: no longer exists since https://github.com/djcb/mu/commit/e6be09e626f33f42b54e438ac90168467f42189e
+    (advice-add 'mu4e~view-old
                 :override #'mu4e-views-view-msg-internal)
     ;; for 1.5 and above avoid complaint about old and gnus to being loaded
     (advice-add 'mu4e-view
