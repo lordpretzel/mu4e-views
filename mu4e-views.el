@@ -2416,7 +2416,7 @@ we do something with an attachment."
         (when (listp part)
           (cond ((equal (mm-handle-media-supertype part) "multipart")
                  (mu4e-views-debug-log "Part %s is multipart, recurse" part)
-                 (setq inlines (append inlines (mu4e-views--extract-attachment-parts part))))
+                 (setq inlines (append inlines (mu4e-views--extract-inline-images part))))
                 (t (let ((fname (cdr (assoc 'filename (assoc "inline" part)))))
 	             (when fname
                        (mu4e-views-debug-log "Part %s is an inline attachment" part)
