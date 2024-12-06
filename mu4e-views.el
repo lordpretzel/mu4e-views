@@ -31,7 +31,7 @@
 ;; also supported.
 ;;
 ;; Also provides methods for user defined viewing methods to access content
-;; extracted from an email, e.g., urls or attachments.  This makes it easier to
+;; extracted from an email, e.g., urls or attachments.  This makes \it easier to
 ;; build new views.
 
 
@@ -1954,11 +1954,15 @@ The window to switch to is determined based on
 
 (defun mu4e-views-export-to-pdf (msg file)
   "Exports MSG to FILE as a pdf document."
+  (when (mu4e-views-mu4e-ver-> '(1 8 0))
+    (mu4e-views--extract-html-for-v18 msg))
   (let* ((html (mu4e-views-mu4e~write-body-and-headers-to-html msg -1 nil)))
     (mu4e-views--html-to-pdf html file)))
 
 (defun mu4e-views-export-to-html (msg file)
   "Exports MSG to FILE as an html document."
+  (when (mu4e-views-mu4e-ver-> '(1 8 0))
+    (mu4e-views--extract-html-for-v18 msg))
   (let* ((html (mu4e-views-mu4e~write-body-and-headers-to-html msg -1 nil)))
     (copy-file html file)))
 
@@ -1969,6 +1973,28 @@ The window to switch to is determined based on
    (mu4e-message-at-point)
    nil
    "pdf"))
+
+(defun mu4e-views-export-msg-as-pdf-with-default-filename-action (msg)
+  "Export MSG to pdf file with default filename without user interaction."
+  (let ((file-name (concat   "~/Downloads/"
+                             (replace-regexp-in-string "[^[:alnum:]_-]" "_"
+                                                       (concat
+                                                        (format-time-string (if (boundp 'mu4e-view-date-format)
+                                                                                mu4e-view-date-format
+                                                                              "%Y-%m-%d")
+											                                (mu4e-message-field msg :date))
+                                                        "_"
+                                                        (if (mu4e-views-mu4e-ver-> '(1 8))
+                                                            (plist-get (car (mu4e-message-field msg :from)) :name)
+                                                          (caar (mu4e-message-field msg :from)))
+                                                        "_"
+                                                        (mu4e-message-field msg :subject)))
+                             "."
+                             "pdf")))
+    (mu4e-views-export-msg-action msg file-name "pdf")))
+
+
+
 
 (defun mu4e-views-export-msg-action (msg &optional tofile export-format)
   "Export MSG to a file.
@@ -2810,7 +2836,7 @@ replace with."
   (mu4e-views-debug-log "Install mu4e advice for mu version %s" mu4e-mu-version)
   ;; in all cases
   (when (mu4e-views-mu4e-ver-< '(1 10))
-    (advice-add 'mu4e~view-internal 
+    (advice-add 'mu4e~view-internal
               :override #'mu4e-views-view-msg-internal))
   ;; only for 1.5 and above
   (unless (mu4e-views-mu4e-ver-<= '(1 4 99))
