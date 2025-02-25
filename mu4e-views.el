@@ -85,7 +85,7 @@
 (require 'esxml)
 (require 'dom)
 (require 'gnus-art)
-
+(require 'url-parse)
 
 
 ;; ********************************************************************************
@@ -364,6 +364,12 @@ particular format. The functions should take a single parameters,
 the `mu4e' message plist."
   :group 'mu4e-views
   :type '(alist :key-type symbol :value-type function))
+
+(defcustom mu4e-views-extract-microsoft-safelink
+  nil
+  "If t, then replace microsoft safelinks with their actual target."
+  :group 'mu4e-views
+  :type 'boolean)
 
 (defvar mu4e-views--mu4e-select-view-msg-method-history
   nil
@@ -1482,6 +1488,16 @@ MSG is just passed on when recursing into the children using F."
           (mu4e-views-dom-remove-attr-and-map-children msg n 'src f)))
     (mu4e-views-apply-dom-filter-to-children msg n f)))
 
+(defun mu4e-views-dom-extract-links (msg n f)
+  "Replace href links in node N <a> in MSG extracting microsoft safelinks.
+
+Then traverse to children applying function F to the children."
+  (let* ((href (dom-attr n 'href))
+         (url (mu4e-views-decode-microsoft-safelink-url href)))
+    (dom-set-attribute n 'href url))
+  (mu4e-views-apply-dom-filter-to-children msg n f)
+  n)
+
 (defun mu4e-views-default-dom-filter (msg n)
   "Default filter function for html emails.
 
@@ -1500,6 +1516,13 @@ N."
      ;; ((has-att n 'href) (mu4e-views-dom-remove-attr-and-map-children n 'href  #'mu4e-views-default-dom-filter))
      ;; remove all script tags
      ((is-a n 'script) nil)
+     ;; replace safelink
+     ((and mu4e-views-extract-microsoft-safelink
+           (is-a n 'a)
+           (has-att n 'href)
+           (has-att n 'class)
+           (string-equal (dom-attr n 'class) "OWAAutoLink"))
+           (mu4e-views-dom-extract-links msg n #'mu4e-views-default-dom-filter))
      ;; otherwise search in children
      (t (recurse-children n)))))
 
@@ -2173,9 +2196,28 @@ urls in `mu4e-views' xwidget message view."
           (let ((bounds (thing-at-point-bounds-of-url-at-point)))
             (when bounds
               (let* ((url (thing-at-point-url-at-point)))
+                (when mu4e-views-extract-microsoft-safelink
+                  (setq url (mu4e-views-decode-microsoft-safelink-url url)))
                 (puthash (cl-incf num) url mu4e~view-link-map)
                 (push url urls))))))
       (lax-plist-put msg :body-urls urls))))
+
+(defun mu4e-views--is-microsoft-safelink (url)
+  "Return non-nil if URL is a microsoft safelink url."
+  (let ((url (url-generic-parse-url url)))
+    (and (url-host url)
+         (string-match-p "safelinks.protection.outlook.com" (url-host url)))))
+
+(defun mu4e-views-decode-microsoft-safelink-url (url)
+  "If URL is a microsoft safelink url, then decode it."
+  (if (mu4e-views--is-microsoft-safelink url)
+      (car (alist-get
+            "/?url"
+            (url-parse-query-string
+             (url-filename
+              (url-generic-parse-url url)))
+            nil nil 'string-equal))
+    url))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-select-url-from-message ()
