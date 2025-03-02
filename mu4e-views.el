@@ -1521,7 +1521,7 @@ N."
            (is-a n 'a)
            (has-att n 'href)
            (has-att n 'class)
-           (string-equal (dom-attr n 'class) "OWAAutoLink"))
+           (string-match-p "OWAAutoLink" (dom-attr n 'class)))
            (mu4e-views-dom-extract-links msg n #'mu4e-views-default-dom-filter))
      ;; otherwise search in children
      (t (recurse-children n)))))
