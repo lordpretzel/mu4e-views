@@ -1518,13 +1518,19 @@ N."
      ((is-a n 'script) nil)
      ;; replace safelink
      ((and mu4e-views-extract-microsoft-safelink
-           (is-a n 'a)
-           (has-att n 'href)
-           (has-att n 'class)
-           (string-match-p "OWAAutoLink" (dom-attr n 'class)))
+           (mu4e-views-is-dom-link-a-ms-safelink-p n))
            (mu4e-views-dom-extract-links msg n #'mu4e-views-default-dom-filter))
      ;; otherwise search in children
      (t (recurse-children n)))))
+
+(defun mu4e-views-is-dom-link-a-ms-safelink-p (n)
+  "Return non-nil if N is a dom node for a MS safelink."
+  (cl-flet ((is-a (node tag) (eq (dom-tag node) tag))
+            (has-att (node a) (dom-attr node a)))
+    (and
+     (is-a n 'a)
+     (has-att n 'href)
+     (s-index-of "safelinks.protection.outlook.com" (dom-attr n 'href)))))
 
 
 ;; ********************************************************************************
