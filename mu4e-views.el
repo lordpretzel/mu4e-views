@@ -1249,14 +1249,14 @@ determine whether to filter or not."
   (mu4e-views-mu4e-create-mu4e-attachment-table-if-need-by msg)
 
   (let* ((html (mu4e-message-field msg :body-html))
-	 (txt (mu4e-message-field msg :body-txt))
+	     (txt (mu4e-message-field msg :body-txt))
          (charcoding (or (plist-get msg :body-html-coding)
                          (plist-get msg :body-txt-coding)
                          mu4e-views--default-coding-system))
          (transfercoding (plist-get msg :body-transfer-coding))
          (icalinvites (plist-get msg :icals))
          (codingsymb (intern charcoding))
-	 (tmpfile (mu4e-make-temp-file "html"))
+	     (tmpfile (mu4e-make-temp-file "html"))
          (dofilter (if filter-html
                        (if (eq filter-html t) t nil)
                      mu4e-views-html-filter-external-content))
@@ -1280,20 +1280,20 @@ determine whether to filter or not."
     (mu4e-views-advice-add-if-def #'vc-before-save :override #'mu4e-views-vc-before-save-dummy)
     (mu4e-views-advice-add-if-def #'vc-after-save :override #'mu4e-views-vc-after-save-dummy)
     ;; write HTML and set coding system
-    (mu4e-views-debug-log "Coding system %s (%s) - with transfer coding" charcoding (symbol-name codingsymb) transfercoding)
+    (mu4e-views-debug-log "Coding system [%s] (%s) - with transfer coding [%s]" charcoding (symbol-name codingsymb) transfercoding)
     (cl-assert (coding-system-p codingsymb)
                "Unkown coding system: %s (%s)"
                (symbol-name codingsymb)
                charcoding)
     (let ((cache-before-save-hook before-save-hook)
-	  (cache-after-save-hook after-save-hook)
+	      (cache-after-save-hook after-save-hook)
           (coding-system-for-write codingsymb))
       ;; write HTML to buffer
       (with-temp-buffer
         (setq-local buffer-file-coding-system codingsymb)
-	(setq before-save-hook nil)
-	(setq after-save-hook nil)
-	(insert (concat (format "<html><head><meta charset=\"%s\">" charcoding)
+	    (setq before-save-hook nil)
+	    (setq after-save-hook nil)
+	    (insert (concat (format "<html><head><meta charset=\"%s\">" charcoding)
                         mu4e-views-mu4e-html-email-header-style
                         "</head>\n"))
         ;; insert mu4e-views info header
@@ -1310,12 +1310,15 @@ determine whether to filter or not."
               (if dofilter
                   (insert (mu4e-views-filter-html msg decoded-html filter-chain codingsymb))
                 (insert decoded-html)))
-	  (insert (concat "<div style=\"white-space: pre-wrap;\">" txt "</div>")))
-	;; rewrite inline attachment urls (show images that are attachments)
-	(mapc (lambda (attachment)
+          ;; message is text only, create html links and insert
+          (setq txt (mu4e-views-htmlize-links-in-txt txt))
+	      (insert (concat "<div style=\"white-space: pre-wrap;\">" txt "</div>")))
+	    ;; rewrite inline attachment urls (show images that are attachments)
+        (mu4e-views-debug-log "Start processing attachments")
+	    (mapc (lambda (attachment)
                 (mu4e-views-debug-log "Process: %s" attachment)
                 (let* ((fname (plist-get attachment :name))
-                       (cid (substring-no-properties (plist-get attachment :cid)))
+                       (cid (plist-get attachment :cid))
                        (temp (plist-get attachment :temp))
                        (tmp-attachment-name (save-match-data (mu4e-make-temp-file (file-name-extension fname))))
                        (cid-search-str (format "src=\"cid:%s\"" cid))
@@ -1324,35 +1327,68 @@ determine whether to filter or not."
                                         cid-search-str
                                         fname
                                         tmp-attachment-name)
-		  (goto-char (point-min))
-		  (while (re-search-forward cid-search-str nil t)
-		    (if temp
-			(replace-match (format "src=\"%s\"" temp))
+                  (save-excursion
+                    (save-match-data
+		          (goto-char (point-min))                  
+		          (while (re-search-forward cid-search-str nil t)
+		            (if temp
+			            (replace-match (format "src=\"%s\"" temp))
                       ;; replace with file link and write att to that file
-		      (replace-match (format "src=\"%s\"" tmp-attachment-name))
                       (mu4e-views-debug-log "Replace \"%s\" with \"%s\"" (match-string 0) (format "src=\"%s\"" tmp-attachment-name))
+		              (replace-match (format "src=\"%s\"" tmp-attachment-name))                      
                       ;; do not write more than once
                       (unless have-matched
                         (setq have-matched t)
-                        (mu4e-views-save-cid-content-to-html msg cid tmp-attachment-name))))))
-	      inlines)
+                        (mu4e-views-debug-log "write to file attachment %s -> %s"
+                                              cid tmp-attachment-name)
+                        (mu4e-views-save-cid-content-to-html msg cid tmp-attachment-name))))))))
+	          inlines)
         (write-file tmpfile)
-	(save-buffer)
-	;; restore normal behaviour
-	(mu4e-views-advice-add-if-def #'set-visited-file-name :after 'doom-modeline-update-buffer-file-name)
-	(mu4e-views-advice-add-if-def #'set-visited-file-name :around 'lsp--on-set-visited-file-name)
-	(mu4e-views-advice-add-if-def #'basic-save-buffer :around 'polymode-with-current-base-buffer)
-	(mu4e-views-advice-add-if-def #'vc-refresh-state :after 'doom-modeline-update-vcs-text)
-	(mu4e-views-advice-add-if-def #'vc-refresh-state :after 'doom-modeline-update-vcs-icon)
-	(mu4e-views-advice-add-if-def #'rename-buffer :after 'doom-modeline-update-buffer-file-name)
-	(mu4e-views-advice-remove-if-def #'set-auto-mode #'mu4e-views-set-auto-mode-dummy)
-	(mu4e-views-advice-remove-if-def #'vc-refresh-state #'mu4e-views-vc-refresh-state-dummy)
-	(mu4e-views-advice-remove-if-def #'vc-before-save #'mu4e-views-vc-before-save-dummy)
-	(mu4e-views-advice-remove-if-def #'vc-after-save #'mu4e-views-vc-after-save-dummy)
-	(setq before-save-hook cache-before-save-hook)
-	(setq after-save-hook cache-after-save-hook)
-	(lax-plist-put msg :html-file tmpfile)
-	tmpfile))))
+	    (save-buffer)
+	    ;; restore normal behaviour
+	    (mu4e-views-advice-add-if-def #'set-visited-file-name :after 'doom-modeline-update-buffer-file-name)
+	    (mu4e-views-advice-add-if-def #'set-visited-file-name :around 'lsp--on-set-visited-file-name)
+	    (mu4e-views-advice-add-if-def #'basic-save-buffer :around 'polymode-with-current-base-buffer)
+	    (mu4e-views-advice-add-if-def #'vc-refresh-state :after 'doom-modeline-update-vcs-text)
+	    (mu4e-views-advice-add-if-def #'vc-refresh-state :after 'doom-modeline-update-vcs-icon)
+	    (mu4e-views-advice-add-if-def #'rename-buffer :after 'doom-modeline-update-buffer-file-name)
+	    (mu4e-views-advice-remove-if-def #'set-auto-mode #'mu4e-views-set-auto-mode-dummy)
+	    (mu4e-views-advice-remove-if-def #'vc-refresh-state #'mu4e-views-vc-refresh-state-dummy)
+	    (mu4e-views-advice-remove-if-def #'vc-before-save #'mu4e-views-vc-before-save-dummy)
+	    (mu4e-views-advice-remove-if-def #'vc-after-save #'mu4e-views-vc-after-save-dummy)
+	    (setq before-save-hook cache-before-save-hook)
+	    (setq after-save-hook cache-after-save-hook)
+	    (lax-plist-put msg :html-file tmpfile)
+	    tmpfile))))
+
+;; create <a> elements for links in txt
+(defconst mu4e-views--http-link-regex
+;  gnus-button-url-regexp
+  goto-address-url-regexp
+  ;"\\(https?://\\([a-zA-Z0-9-]+\\.\\)+[a-zA-Z0-9-]+\\(:[0-9]+\\)?\\(/[^ ]*\\)?\\)"
+  "Regular expression to match http links.")
+
+(defun mu4e-views--wrap-link-into-a (link)
+  "Wrap LINK into an html <a> element."
+  (let ((updatedlink (if (and mu4e-views-extract-microsoft-safelink
+                              (mu4e-views--is-microsoft-safelink link))
+                         (mu4e-views-decode-microsoft-safelink-url link)
+                       link)))
+    (format "<a href=\"%s\">%s</a>"
+            updatedlink updatedlink)))
+
+(defun mu4e-views-htmlize-links-in-txt (txt)
+  "Wrap links in TXT into html <a> elements.
+
+Also decode microsoft safe links if requested by the user."
+  (save-match-data
+    (replace-regexp-in-string
+     mu4e-views--http-link-regex
+     #'mu4e-views--wrap-link-into-a
+     txt
+     nil
+     t
+     nil)))
 
 ;; convert calendar invite into html
 (defun mu4e-views-ical-to-html (ical)
@@ -1870,8 +1906,31 @@ view buffers."
           ;; reset to original value
           (setq gnus-article-buffer tmp-gnus-buffer))))))
 
+(defun mu4e-views--extract-part-inright-coding (part charset encoding)
+  "Given gnus mm handle PART and CHARSET and transfer coding ENCODING, extract plain text."
+  (let ((txt (mm-get-part part nil))
+        (coding-system (mm-charset-to-coding-system charset nil t)))
+    (mu4e-views-debug-log "raw text to decode [%s] after transfer decoding [%s]: %s\n\nbefore: %s\n\nhandle:%s"
+                          charset
+                          encoding
+                          (substring-no-properties txt 0 (min 50 (+ (length txt) -1)))
+                          (with-current-buffer (mm-handle-buffer part)
+                            (buffer-substring (point-min) (min (point-max) 50)))
+                          part
+                          )
+    (unless coding-system
+      (setq coding-system (mm-with-unibyte-buffer
+					        (insert txt)
+					        (mm-find-buffer-file-coding-system)))
+      (mu4e-views-debug-log "determined coding system from raw contents %s" coding-system))
+      ;;(setq txt (decode-coding-string txt coding-system))
+    (with-current-buffer (mm-handle-buffer part)
+      (buffer-substring (point-min) (point-max)))))
+
 (defun mu4e-views--extract-text-and-html-coding-from-gnus (parts msg inmp)
-  "Extract text parts from PARTS of message MSG."
+  "Extract text parts from PARTS of message MSG.
+
+If INMP is non-nil we are in a multi-part message."
   (plist-put msg :icals nil)
   (dolist (part parts)
     (cond
@@ -1880,25 +1939,34 @@ view buffers."
       (let* ((type (mm-handle-type part))
              (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset)))
              (encoding (mm-handle-encoding part))
-             (txt (mm-get-part part)))
-        (when encoding
-          (if inmp
-              (let ((buf))
-                (with-current-buffer (mm-handle-buffer part)
-                  (setq buf (buffer-string)))
-                (with-temp-buffer
-                  (insert buf)
-                  (mm-decode-body charset encoding "text/plain")
-                  (setq txt (buffer-string))))
-            (save-restriction
-              (save-restriction
-	            (article-narrow-to-head)
-	            (goto-char (point-max)))
-              (forward-line 1)
-              (save-restriction
-	            (narrow-to-region (point) (point-max))
-                (setq txt (buffer-string))))))
-        (plist-put msg :body-txt (if (plist-member msg :body-txt)
+             txt)
+        (mu4e-views-debug-log "PLAIN TEXT MESSAGE\nin multipart: %s\ncharset: %s\nencoding: %s"
+                              inmp
+                              charset
+                              encoding)
+        (setq txt (mu4e-views--extract-part-inright-coding part charset encoding))
+        ;; (when encoding
+        ;;   (plist-put msg :body-transfer-coding encoding)
+        ;;   (if inmp
+        ;;       (let ((buf))
+        ;;         (with-current-buffer (mm-handle-buffer part)
+        ;;           (setq buf (buffer-string)))
+        ;;         (with-temp-buffer
+        ;;           (insert buf)
+        ;;           (mm-decode-body charset encoding "text/plain")
+        ;;           (setq txt (buffer-string))))
+        ;;     ;; main part
+        ;;     (save-excursion
+        ;;       (setq txt (mm-get-part part t)))))
+            ;; (save-restriction
+            ;;   (save-restriction
+	        ;;     (article-narrow-to-head)
+	        ;;     (goto-char (point-max)))
+            ;;   (forward-line 1)
+            ;;   (save-restriction
+	        ;;     (narrow-to-region (point) (point-max))
+            ;;     (setq txt (buffer-string))))))
+        (plist-put msg :body-txt (if (and (plist-member msg :body-txt) (not (plist-member msg :body-html)))
                                      (concat (plist-get msg :body-txt)
                                              txt)
                                    txt))
@@ -1915,13 +1983,39 @@ view buffers."
       (let* ((type (mm-handle-type part))
              (charset (mu4e-views--convert-charset (mail-content-type-get type 'charset)))
              (encoding (mm-handle-encoding part)))
+        (mu4e-views-debug-log "HTML part charset [%s] encoding [%s]: %s"
+                              charset
+                              encoding
+                              part)
         ;; if there are multiple html parts with different codings use more specific encoding (currently only checks for ascii)
-        (unless (and (plist-member msg :body-html-coding) (string-match-p ".*ascii.*" charset))
+        (unless (and (plist-member msg :body-html-coding) (string-match-p ".*ascii.*"
+                                                                          charset))
           (plist-put msg :body-html-coding charset))
         (when encoding (plist-put msg :body-transfer-coding encoding))))
      ;; recurse into multipart
      ((and (listp part) (equal (mm-handle-media-supertype part) "multipart"))
       (mu4e-views--extract-text-and-html-coding-from-gnus part msg t))
+     ;; recurse into message/rcf822 embeded message multipart
+	 ((and (listp part) (equal (mm-handle-media-type part) "message/rfc822"))
+      (let (handle)
+	  (mm-with-multibyte-buffer
+	    (mm-insert-part part)
+	    (setq handle (mm-dissect-buffer t t))
+	    (when (and (bufferp (car handle))
+			       (stringp (car (mm-handle-type handle))))
+		  (setq handle (list handle)))
+	    ;; (when header
+		;;   (article-decode-encoded-words)
+		;;   (let ((gnus-visible-headers
+		;; 	     (custom--standard-value 'gnus-visible-headers)))
+		;;     (article-hide-headers))
+		;;   (goto-char (point-min))
+		;;   (search-forward "\n\n" nil 'move)
+		;;   (skip-chars-backward "\t\n ")
+		;;   (setq header (buffer-substring (point-min) (point)))))
+	  (when (prog1
+		        (mu4e-views--extract-text-and-html-coding-from-gnus handle msg t)
+		      (mm-destroy-parts handle))))))
      ;; marker for multipart mixed
      ((and (stringp part) (string= part "multipart/mixed"))
       (setq inmp t)))))
@@ -2208,22 +2302,40 @@ urls in `mu4e-views' xwidget message view."
                 (push url urls))))))
       (lax-plist-put msg :body-urls urls))))
 
+(defun mu4e-views-replace-microsoft-safelinks (s)
+  "Replace all microsoft safelinks in string S."
+  (with-temp-buffer
+    (insert s)
+    (goto-char (point-min))
+    (while (re-search-forward mu4e~view-beginning-of-url-regexp nil t)
+      (let* ((bounds (thing-at-point-bounds-of-url-at-point))
+             (beg (car bounds))
+             (end (cdr bounds)))
+        (when bounds
+          (let* ((url (thing-at-point-url-at-point))
+                 (newurl (mu4e-views-decode-microsoft-safelink-url url)))
+            (delete-region beg end)
+            (insert newurl)))))
+    (buffer-string)))
+
 (defun mu4e-views--is-microsoft-safelink (url)
   "Return non-nil if URL is a microsoft safelink url."
-  (let ((url (url-generic-parse-url url)))
-    (and (url-host url)
-         (string-match-p "safelinks.protection.outlook.com" (url-host url)))))
+  (save-match-data
+    (let ((url (url-generic-parse-url url)))
+      (and (url-host url)
+           (string-match-p "safelinks.protection.outlook.com" (url-host url))))))
 
 (defun mu4e-views-decode-microsoft-safelink-url (url)
   "If URL is a microsoft safelink url, then decode it."
-  (if (mu4e-views--is-microsoft-safelink url)
-      (car (alist-get
-            "/?url"
-            (url-parse-query-string
-             (url-filename
-              (url-generic-parse-url url)))
-            nil nil 'string-equal))
-    url))
+  (save-match-data
+    (if (mu4e-views--is-microsoft-safelink url)
+        (car (alist-get
+              "/?url"
+              (url-parse-query-string
+               (url-filename
+                (url-generic-parse-url url)))
+              nil nil 'string-equal))
+      url)))
 
 ;;;###autoload
 (defun mu4e-views-mu4e-select-url-from-message ()
@@ -2374,6 +2486,8 @@ If MSG is not provided then use `mu4e-views--current-mu4e-message'."
     (let ((parts (plist-get msg :gnus-all-parts))
           cid-file)
       (setq cid (mu4e-views--get-gnus-created-cid parts cid))
+      (mu4e-views-debug-log "writing %s to file %s"
+                            cid filename)
       (setq cid-file (concat temporary-file-directory "../"
 	                         (gnus-article-browse-html-save-cid-content
 	                          cid
@@ -2398,9 +2512,24 @@ If MSG is not provided then use `mu4e-views--current-mu4e-message'."
              ;; found a cid part, check that it is the one
              ((string-prefix-p (concat "<" cid) (mm-handle-id handle))
               (setq cidresult (mm-handle-id handle))
-              (setq cidresult  (substring cidresult 1 (1- (length cidresult))))
-              (throw 'found cidresult))))))))
-
+              (setq cidresult (substring cidresult 1 (1- (length cidresult))))
+              (throw 'found cidresult))
+             ((and (listp (mm-handle-type handle))
+                   (assoc 'name (mm-handle-type handle)))
+              (let ((newid (substring-no-properties (cdr (assoc 'name (mm-handle-type handle))))))
+                (mu4e-views-debug-log "will update handle to add cid [%s]: %s"
+                                      newid
+                                      handle)
+                (setf (mm-handle-id handle) (concat "<" newid ">"))
+                (setq cidresult newid)
+                (mu4e-views-debug-log "updated handle to add cid [%s]: %s"
+                                      newid
+                                      handle)
+                (throw 'found cidresult)))             
+             )))
+        cidresult
+        )))
+  ;; guard for mu4e version
   )
 
 (when (mu4e-views-mu4e-ver-< '(1 7))
@@ -2483,18 +2612,26 @@ we do something with an attachment."
 
   (defun mu4e-views--extract-inline-images (parts)
     "Extract inline image information from PARTS."
-    (mu4e-views-debug-log "Extract inline images.")
+    (mu4e-views-debug-log "Extract inline images and other inline attachments.")
     (let ((inlines))
       (dolist (part parts)
-        (mu4e-views-debug-log "Process part: %s" part)
+        (mu4e-views-debug-log "Process part for inlining attachments (images): %s" part)
         (when (listp part)
           (cond ((equal (mm-handle-media-supertype part) "multipart")
                  (mu4e-views-debug-log "Part %s is multipart, recurse" part)
                  (setq inlines (append inlines (mu4e-views--extract-inline-images part))))
-                (t (let ((fname (cdr (assoc 'filename (assoc "inline" part)))))
-	             (when fname
-                       (mu4e-views-debug-log "Part %s is an inline attachment" part)
-	               (push `(:name ,fname :cid ,(substring (car (last part)) 1 -1) :part ,part) inlines)))))))
+                (t (let* ((fname (cdr (assoc 'filename (assoc "inline" part))))
+                          (cid (or (when (car (last part))
+                                     (substring-no-properties (substring (car (last part)) 1 -1)))
+                                   (when (and (listp (mm-handle-type part))
+                                              (assoc 'name (mm-handle-type part)))
+                                     (substring-no-properties (cdr (assoc 'name (mm-handle-type part)))))
+                                   )))
+	                 (when fname
+                       (mu4e-views-debug-log "Part %s is an inline attachment with CID: %s"
+                                             part
+                                             cid)
+	                   (push `(:name ,fname :cid ,cid :part ,part) inlines)))))))
       inlines))
 
 
@@ -2529,14 +2666,44 @@ extracting attachments."
         (with-current-buffer gnusbuf
           (insert-file-contents-literally
            (mu4e-message-readable-path msg) nil nil nil t)
-          (run-hooks 'gnus-article-decode-hook)
-          (let ((parts (mm-dissect-buffer t t)))
-            ;; If singlepart, enforce a list.
-            (when (and (bufferp (car parts))
-		               (stringp (car (mm-handle-type parts))))
-	          (setq parts (list parts)))
-            (lax-plist-put msg :gnus-all-parts parts)
-            (plist-put msg :gnus-buffer gnusbuf))))))
+          (let* ((ct (mail-fetch-field "Content-Type"))
+                 (ct (and ct (mail-header-parse-content-type ct)))
+                 (charset (mail-content-type-get ct 'charset))
+                 (charset (and charset (intern charset)))
+                 (gnus-newsgroup-charset
+                  (if (and charset (coding-system-p charset)) charset
+                    (detect-coding-region (point-min) (point-max) t))))
+            (run-hooks 'gnus-article-decode-hook)
+            (mu4e-views-debug-log "CODING SYSTEM IN GNUS: %s"
+                                  gnus-newsgroup-charset)
+            (let ((parts (mm-dissect-buffer t t)))
+              ;; If singlepart, enforce a list.
+              (when (and (bufferp (car parts))
+		                 (stringp (car (mm-handle-type parts))))
+	            (setq parts (list parts)))
+              (plist-put msg :gnus-charset gnus-newsgroup-charset)
+              (lax-plist-put msg :gnus-all-parts parts)
+              (plist-put msg :gnus-buffer gnusbuf)))))))
+  
+;;   (defun mu4e-views-create-gnus-all-parts-if-need-be (msg)
+;;     "Extract all message parts including inline images from MSG using gnus.
+
+;; Used to insert inline content into html message and for
+;; extracting attachments."
+;;     (unless (plist-member msg :gnus-all-parts)
+;;       (let* ((gnusbufname (make-temp-name "gnus-part-extraction-"))
+;;              (gnusbuf (get-buffer-create gnusbufname)))
+;;         (with-current-buffer gnusbuf
+;;           (insert-file-contents-literally
+;;            (mu4e-message-readable-path msg) nil nil nil t)
+;;           (run-hooks 'gnus-article-decode-hook)
+;;           (let ((parts (mm-dissect-buffer t t)))
+;;             ;; If singlepart, enforce a list.
+;;             (when (and (bufferp (car parts))
+;; 		               (stringp (car (mm-handle-type parts))))
+;; 	          (setq parts (list parts)))
+;;             (lax-plist-put msg :gnus-all-parts parts)
+;;             (plist-put msg :gnus-buffer gnusbuf))))))
 
   (defun mu4e-views-get-attachment-names (msg)
     "Return names of attachments for MSG.
