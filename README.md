@@ -123,7 +123,7 @@ Here is an example setup:
 
 ### Temporarily switching view methods
 
-Sometimes it is useful to be able to view the currently selected email message using a different view method without changing the view method. For instance, you may want to switch from the default html view method (`"html"`) that blocks remote content to one that shows remote content to show images in the current email (`"html-nonblock"`).
+Sometimes it is useful to be able to view the currently email message currently selected in the headers view using a different view method without changing the view method. For instance, you may want to switch from the default html view method (`"html"`) that blocks remote content to one that shows remote content to show images in the current email (`"html-nonblock"`).
 
 `mu4e-views` now provides a function for that: `(mu4e-views-view-current-msg-with-method NAME)`. This function causes `mu4e-views` to redisplay the current email message using the view method named `NAME`. When selecting a different email message afterwards, this email will be shown using your normal viewing method.
 
@@ -148,8 +148,9 @@ Since showing remote content is a common use case, there is convenience function
 - `mu4e-views-dispatcher-predicate-view-map` - predicates for selecting the view method to use per email when using the *dispatcher* view method.
 - `mu4e-views-html-to-pdf-command` - command to run to translate hmtl into pdf for the *pdf* view method
 - `mu4e-views-respect-mu4e-view-use-gnus` - normally `mu4e-views` determines its own settings to determine what view method to use. If this is non-nil, then `mu4e-view` respects the `mu4e-view-use-gnus` setting.
+- `mu4e-views-export-alist` - alist of `(method . function)` cons cells that maps a `method` (a symbol) to the function implementing this method. These functions should take two arguments `msg` which is a `mu4e` message plist and `file` is the file the exported message should be written to
 
-### xwidgets view (view method "html")
+### xwidgets view (view method "html", "html-block" and "html-nonblock")
 
 Several keys are bound in this view to store attachments, open attachments, go to urls in the email similar to the regular `mu4e` view window.
 
