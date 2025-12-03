@@ -2,6 +2,32 @@
 
 # mu4e-views
 
+<!--toc:start-->
+- [mu4e-views](#mu4e-views)
+  - [Warning](#warning)
+  - [Installation](#installation)
+    - [MELPA](#melpa)
+    - [Prerequisites](#prerequisites)
+    - [Quelpa](#quelpa)
+    - [straight](#straight)
+    - [Source](#source)
+  - [Usage](#usage)
+    - [Setup](#setup)
+    - [Temporarily switching view methods](#temporarily-switching-view-methods)
+    - [Settings](#settings)
+    - [xwidgets view (view method "html", "html-block" and "html-nonblock")](#xwidgets-view-view-method-html-html-block-and-html-nonblock)
+      - [Synergy with `xwwp`](#synergy-with-xwwp)
+    - [Filtering html content](#filtering-html-content)
+    - [Dispatcher view method](#dispatcher-view-method)
+    - [Define custom views](#define-custom-views)
+    - [Exporting email](#exporting-email)
+  - [Development](#development)
+    - [Selecting which `mu4e` versions to include](#selecting-which-mu4e-versions-to-include)
+    - [Building the docker images](#building-the-docker-images)
+    - [Using the images](#using-the-images)
+    - [Running emacs with a particular mu version](#running-emacs-with-a-particular-mu-version)
+<!--toc:end-->
+
  [mu4e](https://www.djcbsoftware.nl/code/mu/mu4e.html) is great, but viewing of html emails is suboptimal.  This packages enables the user to choose how to view emails.  It's main use case is to view html emails using an xwidgets window, but custom viewing methods are also supported.
 
 ![viewing-html-emails](./screencasts/mu4e-views.gif)
